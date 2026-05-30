@@ -2,7 +2,6 @@ import { URL } from 'node:url';
 
 import { t } from '../i18n';
 import { logger } from '../logger';
-import { safeStringify } from '../json';
 import { API_PROVIDER_HTTP_ERROR_LINKS, MAX_DIAGNOSTIC_FIELD_LENGTH, OFFICIAL_MIMO_API_HOST } from './consts';
 
 const OFFICIAL_HOSTS = new Set([OFFICIAL_MIMO_API_HOST, `www.${OFFICIAL_MIMO_API_HOST}`]);
@@ -209,11 +208,18 @@ export function classifyNetworkError(error: unknown): NetworkErrorClassification
 
 	switch (code) {
 		case 'ENOTFOUND':
+		case 'EAI_AGAIN':
 			return 'dns';
 		case 'ECONNREFUSED':
 		case 'ENETUNREACH':
 		case 'EHOSTUNREACH':
 		case 'ECONNRESET':
+		case 'ERR_NETWORK':
+		case 'ERR_CONNECTION_REFUSED':
+		case 'ERR_SOCKET_CONNECTION_TIMEOUT':
+		case 'ENETDOWN':
+		case 'EHOSTDOWN':
+		case 'EADDRNOTAVAIL':
 			return 'unreachable';
 		case 'ETIMEDOUT':
 		case 'UND_ERR_HEADERS_TIMEOUT':
@@ -226,41 +232,20 @@ export function classifyNetworkError(error: unknown): NetworkErrorClassification
 		case 'CERT_HAS_EXPIRED':
 		case 'CERT_NOT_YET_VALID':
 		case 'ERR_TLS_HANDSHAKE_TIMEOUT':
-			return 'tls';
-		case 'ECONNABORTED':
-		case 'UND_ERR_ABORTED':
-			return 'aborted';
-		case 'ERR_NETWORK':
-			return 'unreachable';
-		case 'EAI_AGAIN':
-			return 'dns';
 		case 'CERT_REJECTED':
 		case 'ERR_SOCKET_CLOSED_BEFORE_CONNECTION':
 			return 'tls';
-		case 'ERR_CONNECTION_REFUSED':
-		case 'ERR_SOCKET_CONNECTION_TIMEOUT':
-			return 'unreachable';
+		case 'ECONNABORTED':
+		case 'UND_ERR_ABORTED':
+		case 'ABORT_ERR':
+		case 'ERR_ABORTED':
+			return 'aborted';
 		case 'EPIPE':
-		case 'EHOSTDOWN':
-		case 'EADDRNOTAVAIL':
 		case 'EADDRINUSE':
-		case 'ECONNRESET':
 		case 'EPROTO':
 		case 'ELOOP':
 		case 'EBADF':
 			return 'protocol';
-		case 'DEPTH_ZERO_SELF_SIGNED_CERT':
-		case 'ERR_TLS_CERT_ALTNAME_INVALID':
-			return 'configuration';
-		case 'ABORT_ERR':
-		case 'ERR_ABORTED':
-		case 'ECONNABORTED':
-		case 'UND_ERR_ABORTED':
-			return 'aborted';
-		case 'ENETDOWN':
-		case 'ENETUNREACH':
-		case 'EHOSTUNREACH':
-			return 'unreachable';
 		default:
 			if (typeof (error as { type?: unknown }).type === 'string') {
 				const type = ((error as { type?: unknown }).type as string).toLowerCase();

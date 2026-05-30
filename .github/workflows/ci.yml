@@ -25,10 +25,10 @@ jobs:
 
       - run: npm run compile
 
-      - run: mkdir -p dist && npm run package
+      - name: Package extension
+        run: |
+          mkdir -p dist
+          cp README.zh-cn.md dist/README.marketplace.md
+          npm run package
 
-      - uses: actions/upload-artifact@v4
-        with:
-          name: deepseek-v4-for-copilot.vsix
-          path: dist/*.vsix
-          retention-days: 30
+

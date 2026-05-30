@@ -1,7 +1,7 @@
 import { safeStringify } from '../json';
 import { logger } from '../logger';
 import type { MiMoRequest, MiMoStreamEvent, StreamCallbacks, MiMoToolUseBlock } from '../types';
-import { classifyHttpError, classifyNetworkError, MiMoRequestError } from './error';
+import { classifyNetworkError, MiMoRequestError } from './error';
 import { ANTHROPIC_API_VERSION } from './consts';
 
 type StreamChatCompletionOptions = {
@@ -99,7 +99,6 @@ export class MiMoClient {
 	): void {
 		const decoder = new TextDecoder();
 		let bufferedText = '';
-		let currentEvent = '';
 		const activeToolCalls = new Map<number, MiMoToolUseBlock>();
 
 		const cancelAndExit = () => {
@@ -118,7 +117,6 @@ export class MiMoClient {
 						bufferedText = bufferedText.slice(newlineIndex + 1);
 
 						if (line.startsWith('event: ')) {
-							currentEvent = line.slice(7).trim();
 							continue;
 						}
 

@@ -1,136 +1,112 @@
-<h1 align="center">DeepSeek V4 for Copilot Chat</h1>
+# MiMo for Copilot Chat
 
-<p align="center">
-  <!-- marketplace-readme:remove-start -->
-  <a href="https://marketplace.visualstudio.com/items?itemName=Vizards.deepseek-v4-for-copilot"><img src="https://img.shields.io/badge/VS%20Code%20Marketplace-Install-007ACC?logo=visualstudiocode&logoColor=white&style=for-the-badge" alt="Install from VS Code Marketplace"></a>
-  <a href="https://open-vsx.org/extension/Vizards/deepseek-v4-for-copilot"><img src="https://img.shields.io/badge/Open%20VSX-Install-6A4FB6?style=for-the-badge" alt="Install from Open VSX"></a>
-  <br/>
-  <!-- marketplace-readme:remove-end -->
-  <img src="https://img.shields.io/github/v/release/Vizards/deepseek-v4-for-copilot?style=for-the-badge&label=Version" alt="Version" />
-  <img src="https://vsmarketplacebadges.dev/installs-short/Vizards.deepseek-v4-for-copilot.svg?style=for-the-badge" alt="Installs" />
-</p>
+**在 Copilot Chat 模型选择器中直接使用小米 MiMo 模型——无需离开你熟悉的 Copilot 工作流。**
 
-<p align="center">
-  English |
-  <a href="https://github.com/Vizards/deepseek-v4-for-copilot/blob/main/README.zh-cn.md">简体中文</a>
-</p>
+喜欢 MiMo 的性价比，但不想放弃 GitHub Copilot 的 Agent 模式、工具调用和成熟的交互体验？本扩展将 **MiMo V2.5 Pro、V2.5 和 V2 Flash** 直接接入 Copilot Chat 模型选择器，支持**思考模式**，使用你自己的 API Key。
 
-**Pick DeepSeek V4 from the Copilot Chat model picker — and keep everything else Copilot already gives you.**
+## 功能特性
 
-<p align="center">
-  <img src="resources/screenshots/01-picker.png" alt="DeepSeek V4 Pro and Flash in the Copilot Chat model picker, with the per-model Thinking Effort dropdown (None / High / Max)" width="800">
-</p>
+### MiMo 模型出现在模型选择器中
 
-Love DeepSeek's price-performance but don't want to give up GitHub Copilot's agent mode, tool calling, and polished UI? This extension drops **DeepSeek V4 Pro & Flash** straight into the Copilot Chat model selector — with **vision**, **thinking mode**, and your own API key.
+三个模型与 GPT-4o、Claude 等并列在 Copilot Chat 的模型选择器中。可在对话中途切换模型，不丢失聊天历史。
 
-## Why this extension?
+### 思考模式与推理深度控制
 
-- **Don't replace Copilot — power it up.** No new sidebar, no new chat UI to learn. Just a new model in the picker you already use.
-- **Agent mode, tool calling, instructions, MCP, skills — all of it still works.** Copilot's entire stack, now running on DeepSeek.
-- **Vision on a text-only model.** DeepSeek V4 can't see images. This extension proxies any image you drop into chat through another Copilot model you already have, then feeds the description to DeepSeek — transparently.
-- **BYOK, pay DeepSeek directly.** Your API key, your bill, your rate limits. Stored in the OS keychain, never on disk.
+完整支持 MiMo V2.5 Pro 的 thinking 模式。通过 Copilot Chat 模型选择器的菜单选择 `停用`、`标准`（均衡，默认）或 `深度`（适用于复杂 Agent 任务）。
 
-## Features
+### 继承全部 Copilot 能力
 
-### DeepSeek V4 Pro & Flash in the model picker
-Both models show up alongside GPT-4o, Claude, and friends in Copilot Chat's model selector. 1M token context on both. Switch models mid-chat without losing history.
+由于本扩展接入的是 Copilot 的原生 provider API，你免费获得完整能力栈：
 
-### Transparent Vision Proxy
-DeepSeek V4 is text-only. Drop a screenshot into chat and this extension automatically hands the image to another installed Copilot model (Claude, GPT-4o, whatever you've got), gets a description, and feeds that back to DeepSeek. **Zero config** — just pick your preferred vision model once.
+- **Agent 模式** ——自主执行多步骤任务
+- **工具调用** ——文件编辑、终端操作、工作区搜索、Git、测试
+- **Instructions & Skills** ——你的 `.instructions.md`、`AGENTS.md` 和各项 Skills 开箱即用
 
-This proxy is a compatibility bridge; if DeepSeek native vision becomes available, the extension will move toward a more unified vision path.
+### 安全优先
 
-<p align="center">
-  <img src="resources/screenshots/03-vision.png" alt="Dropping an image into Copilot Chat and DeepSeek responding to it via the vision proxy" width="800">
-</p>
+API Key 存储在 VS Code 的 `SecretStorage` 中（macOS 钥匙串 / Windows 凭据管理器 / Linux 密钥环）。绝不会出现在 `settings.json` 中，也不会被提交到 Git 历史。
 
-### Thinking Mode with Reasoning Effort Control
-Full support for DeepSeek V4's `reasoning_content`. Use Copilot Chat's native model picker menu to choose `none` (off), `high` (balanced, default), or `max` (deep reasoning for hard agent tasks).
+### 零运行时依赖
 
-### Inherits Every Copilot Capability
-Because this plugs into Copilot's native provider API, you get the full stack for free:
-- **Agent mode** — autonomous multi-step tasks
-- **Tool calling** — file edits, terminal, workspace search, Git, tests
-- **Instructions & skills** — all your `.instructions.md`, `AGENTS.md`, and skills just work
-- **Prompt caching stats** — DeepSeek's cache hit rate logged in the output channel so you can see the savings
+纯 VS Code API + Node.js 内置模块。无需 Python、Docker 或本地代理进程。
 
-<p align="center">
-  <img src="resources/screenshots/04-agent.png" alt="DeepSeek V4 Pro running Copilot's agent mode with tool calls" width="800">
-</p>
+## 快速开始
 
-### Secure by Default
-API key lives in VS Code's `SecretStorage` (OS keychain on macOS / Windows / Linux). Never in `settings.json`, never in your Git history.
+### 前置条件
 
-### Zero Runtime Dependencies
-Pure VS Code API + Node.js built-ins. No Python, no Docker, no local proxy server to babysit.
+- VS Code 1.116 及以上版本
+- GitHub Copilot 订阅（Free / Pro / Enterprise——免费版即可使用）
+- MiMo API Key，从 MiMo 开放平台获取
 
-## Getting Started
+### 安装方式
 
-### Prerequisites
+1. 从 [GitHub Releases](https://github.com/Luka07720/mimo-for-vscode/releases) 下载最新的 `.vsix` 文件
+2. 在 VS Code 中按 `Ctrl+Shift+P`（macOS 为 `Cmd+Shift+P`）
+3. 输入 `Extensions: Install from VSIX...`
+4. 选择下载的 `.vsix` 文件
 
-- VS Code 1.116 or later. This extension relies on non-public Copilot Chat APIs that may break on newer VS Code versions — [report an issue](https://github.com/Vizards/deepseek-v4-for-copilot/issues) if you hit one.
-- GitHub Copilot subscription (Free / Pro / Enterprise — the free tier works)
-- DeepSeek API key from [platform.deepseek.com](https://platform.deepseek.com), or a compatible provider token when using a custom `deepseek-copilot.baseUrl`
+### 使用步骤
 
-### Installation
+1. 通过命令面板（`Ctrl+Shift+P`）运行 **MiMo: 设置 API Key**
+2. 粘贴你的 Key（通常以 `sk-` 或 `tp-` 开头）
+3. 打开 Copilot Chat，点击模型选择器，选择 **MiMo V2 Flash**、**MiMo V2.5** 或 **MiMo V2.5 Pro**
+4. 搞定——开始聊天
 
-Install from the registry used by your editor:
+## 模型
 
-1. **Microsoft VS Code** — install from [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=Vizards.deepseek-v4-for-copilot).
-2. **Editors that use Open VSX** — install from [Open VSX](https://open-vsx.org/extension/Vizards/deepseek-v4-for-copilot).
+| 模型 | 适用场景 |
+|------|----------|
+| **MiMo V2 Flash** | 日常快速编码、小改动、低成本迭代 |
+| **MiMo V2.5** | 平衡性能与速度，支持图片输入 |
+| **MiMo V2.5 Pro** | 复杂重构、Agent 任务、深度推理（支持思考模式） |
 
-### Usage
+## 设置项
 
-1. Run **DeepSeek: Set API Key** from the Command Palette (`Cmd+Shift+P`)
-2. Paste your key or compatible provider token (official DeepSeek keys usually start with `sk-`)
-3. Open Copilot Chat, click the model picker, pick **DeepSeek V4 Pro** or **DeepSeek V4 Flash**
-4. That's it — chat away
+| 设置项 | 默认值 | 说明 |
+|--------|--------|------|
+| `mimo-copilot.baseUrl` | `https://api.xiaomimimo.com/anthropic` | API 端点——可改为自托管或代理部署地址 |
+| `mimo-copilot.maxTokens` | `0` | 最大输出 Token 数（`0` = 不限制）。可用于成本控制 |
+| `mimo-copilot.modelIdOverrides` | 预填官方 ID 映射 | 模型 ID 映射。仅在使用模型名不同的兼容第三方 API 时修改 |
+| `mimo-copilot.debugMode` | `minimal` | 诊断模式：`minimal` 仅上报 token 用量，`metadata` 输出日志，`verbose` 将完整请求 dump 写入扩展 global storage |
+| `mimo-copilot.visionModel` | *(自动)* | 用作视觉代理的 Copilot 模型 |
+| `mimo-copilot.visionPrompt` | *(内置)* | 用于描述图片附件的提示词 |
 
-## Models
+思考深度可通过 Copilot Chat 的模型选择器对 MiMo V2.5 Pro 模型单独设置。
 
-| Model | Best For |
-|---|---|
-| **DeepSeek V4 Flash** | Fast everyday coding, quick edits, cheap iteration |
-| **DeepSeek V4 Pro** | Complex refactors, agent tasks, deep reasoning |
-
-Both support optional thinking mode, tool calling, and 1M token context.
-
-## Settings
-
-| Setting | Default | Description |
-|---|---|---|
-| `deepseek-copilot.baseUrl` | `https://api.deepseek.com` | API endpoint — change for self-hosted / proxied deployments |
-| `deepseek-copilot.maxTokens` | `0` | Max output tokens (`0` = no limit). Useful for cost control |
-| `deepseek-copilot.modelIdOverrides` | prefilled official ID map | API model IDs to send for DeepSeek V4 Flash / Pro. Change only for compatible third-party APIs with different model names |
-| `deepseek-copilot.debugMode` | `minimal` | Diagnostic mode: `minimal` for token usage only, `metadata` for privacy-preserving logs, or `verbose` for full request dumps and pipeline snapshots under extension global storage. Full dumps may include sensitive prompt text, tool schemas, file snippets, and image descriptions. Use `DeepSeek: Open Request Dumps Folder` to open the dump location |
-| `deepseek-copilot.visionModel` | *(auto)* | Which Copilot model to proxy images through |
-| `deepseek-copilot.visionPrompt` | *(built-in)* | Prompt used to describe image attachments |
-| `deepseek-copilot.experimental.stabilizeToolList` | `false` | Experimental. Tries to pre-activate VS Code/Copilot virtual tools so the DeepSeek API `tools` parameter is more complete and stable across turns. May improve context-cache hit rate when enabled tools change between turns. Can increase input tokens because more function definitions may be included; cache-hit input tokens are cheaper but still count toward usage. Usually leave it off with 64 or fewer enabled tools unless the tool list still changes across turns; do not enable it with more than 128 enabled tools |
-
-Thinking Effort is configured from Copilot Chat's model picker for each DeepSeek model.
-
-Example `settings.json` override for compatible API proxies:
+兼容 API 代理的 `settings.json` 配置示例：
 
 ```json
 {
-  "deepseek-copilot.modelIdOverrides": {
-    "deepseek-v4-flash": "your-flash-model-id",
-    "deepseek-v4-pro": "your-pro-model-id"
+  "mimo-copilot.modelIdOverrides": {
+    "mimo-v2-flash": "your-flash-model-id",
+    "mimo-v2.5": "your-model-id",
+    "mimo-v2.5-pro": "your-pro-model-id"
   }
 }
 ```
 
-## Compared to alternatives
+## 方案对比
 
-| | This extension | Local proxy (e.g. LiteLLM) | Standalone DeepSeek extensions |
-|---|---|---|---|
-| Works inside Copilot Chat | ✅ | ✅ | ❌ separate UI |
-| Agent mode, tools, skills | ✅ | ✅ | ⚠️ reimplemented |
-| Vision support | ✅ proxied | ❌ | ❌ |
-| No extra process to run | ✅ | ❌ | ✅ |
-| One-click install | ✅ | ❌ | ✅ |
-| API key in OS keychain | ✅ | ❌ | ⚠️ varies |
+|  | 本扩展 | 本地代理（如 LiteLLM） | 独立扩展 |
+|--|--------|----------------------|----------|
+| 在 Copilot Chat 内使用 | ✅ | ✅ | ❌ 独立界面 |
+| Agent 模式、工具、Skills | ✅ | ✅ | ⚠️ 自行实现 |
+| 无需额外运行进程 | ✅ | ❌ | ✅ |
+| 一键安装 | ✅ | ❌ | ✅ |
+| API Key 存系统密钥链 | ✅ | ❌ | ⚠️ 各异 |
 
-## License
+## 技术架构
+
+本扩展使用 Anthropic Messages API 协议与 MiMo 服务端通信：
+
+```
+VS Code Copilot Chat
+    ↓ (LanguageModelChatProvider API)
+本扩展 (TypeScript)
+    ↓ (Anthropic Messages API, SSE streaming)
+MiMo API (api.xiaomimimo.com)
+```
+
+## 许可证
 
 [MIT](LICENSE)
