@@ -85,7 +85,12 @@ export function convertMessages(
 			if (content) {
 				result.push({
 					role: 'user',
-					content: content,
+					content: [
+						{
+							type: 'text',
+							text: content,
+						},
+					],
 				});
 			}
 		}
