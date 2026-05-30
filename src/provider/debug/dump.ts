@@ -178,10 +178,7 @@ export function dumpProviderInput(options: DumpProviderInputOptions): void {
  *   mimo-request-<timestamp>-NNNN.json           — full request body
  *   mimo-request-<timestamp>-NNNN.msg0.txt       — messages[0] content (system prompt)
  */
-export function dumpMiMoRequest(
-	request: MiMoRequest,
-	options: DumpMiMoRequestOptions,
-): void {
+export function dumpMiMoRequest(request: MiMoRequest, options: DumpMiMoRequestOptions): void {
 	if (!getRequestDumpEnabled()) return;
 
 	const requestKind =
@@ -217,7 +214,8 @@ export function dumpMiMoRequest(
 		);
 
 		if (msg0 && paths.msg0) {
-			const msg0Content = typeof msg0.content === 'string' ? msg0.content : JSON.stringify(msg0.content);
+			const msg0Content =
+				typeof msg0.content === 'string' ? msg0.content : JSON.stringify(msg0.content);
 			await writeTextFile(paths.msg0, msg0Content);
 		}
 
@@ -732,9 +730,7 @@ function summarizeVscodeCustomizations(
 	};
 }
 
-function summarizeMiMoCustomizations(
-	messages: readonly MiMoMessage[],
-): CustomizationsSummary {
+function summarizeMiMoCustomizations(messages: readonly MiMoMessage[]): CustomizationsSummary {
 	let customizationsUpdateCountInHistory = 0;
 	let latestUserMessageIndex: number | null = null;
 	let latestUserHasCustomizationsUpdate = false;

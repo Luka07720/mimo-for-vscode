@@ -1616,7 +1616,9 @@ function summarizeMessage(
 			? ('tool-call' as const)
 			: ('final' as const)
 		: ('none' as const);
-	const hasReasoningContent = reasoningChars > 0 || (Array.isArray(message.content) && message.content.some((block) => block.type === 'thinking'));
+	const hasReasoningContent =
+		reasoningChars > 0 ||
+		(Array.isArray(message.content) && message.content.some((block) => block.type === 'thinking'));
 	const hasEmptyReasoningContent = hasReasoningContent && reasoningChars === 0;
 	const imageDescriptionCount = countLiteral(messageContent, '[Image Description:');
 	const unableImageCount = countLiteral(messageContent, IMAGE_DESCRIPTION_UNAVAILABLE);
@@ -1826,7 +1828,10 @@ function summarizeStats(messages: MiMoMessage[], toolCount: number): CacheTraceS
 		let messageToolCalls = 0;
 		let messageReasoningChars = 0;
 		let messageToolCallArgumentChars = 0;
-		const hasToolResult = message.role === 'user' && Array.isArray(message.content) && message.content.some((block) => block.type === 'tool_result');
+		const hasToolResult =
+			message.role === 'user' &&
+			Array.isArray(message.content) &&
+			message.content.some((block) => block.type === 'tool_result');
 
 		if (hasToolResult) {
 			toolMessages += 1;
@@ -1887,7 +1892,10 @@ function summarizeStats(messages: MiMoMessage[], toolCount: number): CacheTraceS
 			} else {
 				assistantAfterToolResultFinalMessages += 1;
 			}
-			const hasReasoning = messageReasoningChars > 0 || (Array.isArray(message.content) && message.content.some((block) => block.type === 'thinking'));
+			const hasReasoning =
+				messageReasoningChars > 0 ||
+				(Array.isArray(message.content) &&
+					message.content.some((block) => block.type === 'thinking'));
 			if (!hasReasoning) {
 				missingPostToolReasoningMessages += 1;
 				if (isToolCallAfterToolResult) {
@@ -1914,7 +1922,10 @@ function summarizeStats(messages: MiMoMessage[], toolCount: number): CacheTraceS
 
 		if (messageToolCalls > 0) {
 			assistantToolCallMessages += 1;
-			const hasReasoning = messageReasoningChars > 0 || (Array.isArray(message.content) && message.content.some((block) => block.type === 'thinking'));
+			const hasReasoning =
+				messageReasoningChars > 0 ||
+				(Array.isArray(message.content) &&
+					message.content.some((block) => block.type === 'thinking'));
 			if (!hasReasoning) {
 				missingToolReasoningMessages += 1;
 			} else if (messageReasoningChars === 0) {

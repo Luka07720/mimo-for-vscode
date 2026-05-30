@@ -48,7 +48,7 @@ jobs:
 
       - run: npm ci
 
-      - run: rm -rf dist && mkdir -p dist && npm run package
+      - run: rm -rf dist && mkdir -p dist && cp README.zh-cn.md dist/README.marketplace.md && npm run package
 
       - name: Locate VSIX
         id: vsix

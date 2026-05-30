@@ -241,9 +241,7 @@ function handleToolCall(
 
 	try {
 		const args = typeof toolCall.input === 'string' ? JSON.parse(toolCall.input) : toolCall.input;
-		progress.report(
-			new vscode.LanguageModelToolCallPart(toolCall.id, toolCall.name, args),
-		);
+		progress.report(new vscode.LanguageModelToolCallPart(toolCall.id, toolCall.name, args));
 	} catch {
 		progress.report(new vscode.LanguageModelToolCallPart(toolCall.id, toolCall.name, {}));
 	}

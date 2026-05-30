@@ -2,7 +2,11 @@ import { URL } from 'node:url';
 
 import { t } from '../i18n';
 import { logger } from '../logger';
-import { API_PROVIDER_HTTP_ERROR_LINKS, MAX_DIAGNOSTIC_FIELD_LENGTH, OFFICIAL_MIMO_API_HOST } from './consts';
+import {
+	API_PROVIDER_HTTP_ERROR_LINKS,
+	MAX_DIAGNOSTIC_FIELD_LENGTH,
+	OFFICIAL_MIMO_API_HOST,
+} from './consts';
 
 const OFFICIAL_HOSTS = new Set([OFFICIAL_MIMO_API_HOST, `www.${OFFICIAL_MIMO_API_HOST}`]);
 
@@ -61,7 +65,11 @@ export class MiMoRequestError extends Error {
 
 	constructor(classification: ErrorClassification, baseUrl?: string, options?: ErrorOptions) {
 		const isHttp = typeof classification === 'object';
-		const kind: ErrorKind = isHttp ? 'http' : classification === 'generic' || classification === 'configuration' ? 'unknown' : 'network';
+		const kind: ErrorKind = isHttp
+			? 'http'
+			: classification === 'generic' || classification === 'configuration'
+				? 'unknown'
+				: 'network';
 		const message = isHttp
 			? buildHttpErrorMessage(classification as HttpErrorClassification, baseUrl)
 			: buildNetworkErrorMessage(classification as NetworkErrorClassification, baseUrl);
@@ -84,7 +92,9 @@ export class MiMoRequestError extends Error {
 	}
 }
 
-export async function classifyHttpError<T extends ResponseLike>(response: T): Promise<HttpErrorClassification> {
+export async function classifyHttpError<T extends ResponseLike>(
+	response: T,
+): Promise<HttpErrorClassification> {
 	let code: string | undefined;
 	let message: string | undefined;
 	let bodyPreview: string | undefined;
@@ -93,13 +103,19 @@ export async function classifyHttpError<T extends ResponseLike>(response: T): Pr
 		const bodyText = await response.text();
 		bodyPreview = truncateBody(bodyText);
 
-		const contentType = (response as unknown as { headers?: Headers }).headers?.get?.('content-type') ?? '';
+		const contentType =
+			(response as unknown as { headers?: Headers }).headers?.get?.('content-type') ?? '';
 		const isJson = contentType.includes('json');
 
 		if (isJson || looksLikeJson(bodyText)) {
 			const json = JSON.parse(bodyText);
 			if (json && typeof json === 'object') {
-				code = typeof json.error?.code === 'string' ? json.error.code : typeof json.type === 'string' ? json.type : undefined;
+				code =
+					typeof json.error?.code === 'string'
+						? json.error.code
+						: typeof json.type === 'string'
+							? json.type
+							: undefined;
 				message =
 					typeof json.error?.message === 'string'
 						? json.error.message
@@ -134,14 +150,18 @@ function looksLikeJson(body: string): boolean {
 	return body.startsWith('{') || body.startsWith('[');
 }
 
-function buildHttpErrorMessage(classification: HttpErrorClassification, baseUrl: string | undefined): string {
+function buildHttpErrorMessage(
+	classification: HttpErrorClassification,
+	baseUrl: string | undefined,
+): string {
 	const host = extractHostLabel(baseUrl);
 	const service = isOfficialEndpoint(host) ? t('service.miMo') : host;
 	const actionBlock = buildActionBlock(classification.status);
 
 	if (classification.status === 401) return t('error.http.401', service) + actionBlock;
 	if (classification.status === 402) return t('error.http.402', service) + actionBlock;
-	if (classification.status === 422) return buildUnprocessableEntityMessage(classification, service);
+	if (classification.status === 422)
+		return buildUnprocessableEntityMessage(classification, service);
 	if (classification.status === 429) return t('error.http.429', service);
 	if (classification.status >= 500 && classification.status < 600) {
 		return t('error.http.5xx', service, classification.status) + actionBlock;
@@ -149,7 +169,10 @@ function buildHttpErrorMessage(classification: HttpErrorClassification, baseUrl:
 	return buildGenericHttpMessage(classification, service);
 }
 
-function buildUnprocessableEntityMessage(classification: HttpErrorClassification, service: string): string {
+function buildUnprocessableEntityMessage(
+	classification: HttpErrorClassification,
+	service: string,
+): string {
 	const code = classification.code ?? '';
 	const message = classification.message ?? '';
 
@@ -170,7 +193,12 @@ function buildUnprocessableEntityMessage(classification: HttpErrorClassification
 
 function buildGenericHttpMessage(classification: HttpErrorClassification, service: string): string {
 	if (classification.code || classification.message) {
-		return t('error.http.withBody', service, classification.status, classification.message ?? classification.code!);
+		return t(
+			'error.http.withBody',
+			service,
+			classification.status,
+			classification.message ?? classification.code!,
+		);
 	}
 
 	return t('error.http.noBody', service, classification.status);
@@ -189,7 +217,8 @@ function collectActionLinks(status: number): Array<{ label: string; url: string 
 	const entries: Array<{ label: string; url: string }> = [];
 	const seen = new Set<string>();
 
-	const providers = status >= 500 ? API_PROVIDER_HTTP_ERROR_LINKS['5xx'] : API_PROVIDER_HTTP_ERROR_LINKS[status];
+	const providers =
+		status >= 500 ? API_PROVIDER_HTTP_ERROR_LINKS['5xx'] : API_PROVIDER_HTTP_ERROR_LINKS[status];
 	if (providers) {
 		for (const { labelKey, url } of Object.values(providers)) {
 			if (seen.has(url)) continue;
@@ -203,7 +232,8 @@ function collectActionLinks(status: number): Array<{ label: string; url: string 
 
 export function classifyNetworkError(error: unknown): NetworkErrorClassification {
 	if (!error || typeof error !== 'object') return 'generic';
-	if (error instanceof AggregateError && error.message === 'All promises were rejected') return 'interrupted';
+	if (error instanceof AggregateError && error.message === 'All promises were rejected')
+		return 'interrupted';
 	const code = normalizeErrorCode((error as NodeJS.ErrnoException).code);
 
 	switch (code) {
@@ -256,7 +286,10 @@ export function classifyNetworkError(error: unknown): NetworkErrorClassification
 	}
 }
 
-export function buildNetworkErrorMessage(kind: NetworkErrorClassification, baseUrl?: string): string {
+export function buildNetworkErrorMessage(
+	kind: NetworkErrorClassification,
+	baseUrl?: string,
+): string {
 	const host = extractHostLabel(baseUrl);
 	const service = isOfficialEndpoint(host) ? t('service.miMo') : host;
 

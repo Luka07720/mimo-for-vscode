@@ -75,7 +75,9 @@ export class MiMoClient {
 				callbacks.onDone();
 				return;
 			}
-			callbacks.onError(new MiMoRequestError(classifyNetworkError(error), this.baseUrl, { cause: error }));
+			callbacks.onError(
+				new MiMoRequestError(classifyNetworkError(error), this.baseUrl, { cause: error }),
+			);
 			return;
 		}
 
@@ -175,7 +177,8 @@ export class MiMoClient {
 									if (toolCall) {
 										// Accumulate partial JSON for tool input
 										const existing = (toolCall as { _partialJson?: string })._partialJson || '';
-										(toolCall as { _partialJson?: string })._partialJson = existing + delta.partial_json;
+										(toolCall as { _partialJson?: string })._partialJson =
+											existing + delta.partial_json;
 									}
 								}
 								break;
@@ -223,7 +226,9 @@ export class MiMoClient {
 				if (controller.signal.aborted) {
 					callbacks.onDone();
 				} else {
-					callbacks.onError(new MiMoRequestError(classifyNetworkError(error), this.baseUrl, { cause: error }));
+					callbacks.onError(
+						new MiMoRequestError(classifyNetworkError(error), this.baseUrl, { cause: error }),
+					);
 				}
 			}
 		})();
