@@ -2,7 +2,6 @@ import { safeStringify } from '../json';
 import { logger } from '../logger';
 import type { MiMoRequest, MiMoStreamEvent, StreamCallbacks, MiMoToolUseBlock } from '../types';
 import { classifyNetworkError, MiMoRequestError } from './error';
-import { ANTHROPIC_API_VERSION } from './consts';
 
 type StreamChatCompletionOptions = {
 	signal?: AbortSignal;
@@ -64,8 +63,7 @@ export class MiMoClient {
 				method: 'POST',
 				headers: {
 					'Content-Type': 'application/json',
-					'x-api-key': this.apiKey,
-					'anthropic-version': ANTHROPIC_API_VERSION,
+					'api-key': this.apiKey,
 				},
 				body: safeStringify(requestBody),
 				signal: controller.signal,
