@@ -1,384 +1,362 @@
+import { URL } from 'node:url';
+
 import { t } from '../i18n';
-import {
-	API_PROVIDER_HTTP_ERROR_LINKS,
-	MAX_DIAGNOSTIC_FIELD_LENGTH,
-	NETWORK_ERROR_CATEGORY_BY_CODE,
-	OFFICIAL_DEEPSEEK_API_HOST,
-} from './consts';
-import type {
-	ApiProviderId,
-	DeepSeekRequestErrorKind,
-	ErrorActionLink,
-	ErrorActionUrls,
-	HttpErrorLinkDefinition,
-	HttpErrorLinkStatusKey,
-	NetworkErrorCategory,
-} from './types';
-export type { DeepSeekRequestErrorKind, ErrorActionUrls } from './types';
+import { logger } from '../logger';
+import { safeStringify } from '../json';
+import { API_PROVIDER_HTTP_ERROR_LINKS, MAX_DIAGNOSTIC_FIELD_LENGTH, OFFICIAL_MIMO_API_HOST } from './consts';
 
-const errorActionUrlStore = (() => {
-	let current: ErrorActionUrls = {};
+const OFFICIAL_HOSTS = new Set([OFFICIAL_MIMO_API_HOST, `www.${OFFICIAL_MIMO_API_HOST}`]);
 
-	return {
-		get: () => current,
-		set: (key: keyof ErrorActionUrls, url: string) => {
-			current = { ...current, [key]: url };
-		},
-	};
-})();
+const actionUrls: Record<string, string | undefined> = {};
 
-export function setErrorActionUrl(key: keyof ErrorActionUrls, url: string): void {
-	errorActionUrlStore.set(key, url);
+export function setErrorActionUrl(key: string, url: string): void {
+	actionUrls[key] = url;
 }
 
-export class DeepSeekRequestError extends Error {
-	readonly kind: DeepSeekRequestErrorKind;
+export function getErrorActionUrl(key: string): string | undefined {
+	return actionUrls[key];
+}
+
+export function isOfficialEndpoint(host: string): boolean {
+	return OFFICIAL_HOSTS.has(host);
+}
+
+export type HttpErrorKind = 'http';
+export type NetworkErrorKind = 'network';
+export type UnknownErrorKind = 'unknown';
+export type ErrorKind = HttpErrorKind | NetworkErrorKind | UnknownErrorKind;
+
+export type NetworkErrorClassification =
+	| 'dns'
+	| 'unreachable'
+	| 'interrupted'
+	| 'timeout'
+	| 'tls'
+	| 'aborted'
+	| 'protocol'
+	| 'configuration'
+	| 'generic';
+
+export type HttpErrorClassification = {
+	status: number;
+	code: string | undefined;
+	message: string | undefined;
+	bodyPreview: string | undefined;
+	kind: 'client' | 'server' | 'proxy' | 'unknown';
+};
+export type ErrorClassification = HttpErrorClassification | NetworkErrorClassification;
+
+interface ResponseLike {
+	readonly status: number;
+	readonly url: string;
+	text(): Promise<string>;
+}
+
+export class MiMoRequestError extends Error {
+	readonly kind: ErrorKind;
 	readonly userSummary: string;
 	readonly diagnosticMessage: string;
-	readonly baseUrl?: string;
-	readonly status?: number;
-	readonly code?: string;
+	readonly baseUrl: string | undefined;
+	readonly status: number | undefined;
+	readonly code: string | undefined;
 
-	constructor(options: {
-		message: string;
-		userSummary?: string;
-		kind: DeepSeekRequestErrorKind;
-		diagnosticMessage?: string;
-		baseUrl?: string;
-		status?: number;
-		code?: string;
-		cause?: unknown;
-	}) {
-		super(options.message, { cause: options.cause });
-		this.name = 'DeepSeekRequestError';
-		this.kind = options.kind;
-		this.userSummary = options.userSummary ?? options.message;
-		this.diagnosticMessage = options.diagnosticMessage ?? options.message;
-		this.baseUrl = options.baseUrl;
-		this.status = options.status;
-		this.code = options.code;
+	constructor(classification: ErrorClassification, baseUrl?: string, options?: ErrorOptions) {
+		const isHttp = typeof classification === 'object';
+		const kind: ErrorKind = isHttp ? 'http' : classification === 'generic' || classification === 'configuration' ? 'unknown' : 'network';
+		const message = isHttp
+			? buildHttpErrorMessage(classification as HttpErrorClassification, baseUrl)
+			: buildNetworkErrorMessage(classification as NetworkErrorClassification, baseUrl);
+		super(message, options);
+		this.name = 'MiMoRequestError';
+		this.kind = kind;
+		this.userSummary = message;
+		this.diagnosticMessage = message;
+		this.baseUrl = baseUrl;
+		this.status = isHttp ? (classification as HttpErrorClassification).status : undefined;
+		this.code = isHttp ? (classification as HttpErrorClassification).code : undefined;
+	}
+
+	static async fromHttpResponse<T extends ResponseLike>(
+		response: T,
+		baseUrl: string,
+	): Promise<MiMoRequestError> {
+		const classification = await classifyHttpError(response);
+		return new MiMoRequestError(classification, baseUrl, { cause: response });
 	}
 }
 
-export async function createHttpError(
-	response: Response,
-	baseUrl: string,
-): Promise<DeepSeekRequestError> {
-	const responseText = await response.text();
-	const serverMessage = extractServerMessage(responseText);
-	const userSummary = getHttpErrorMessage(
-		response.status,
-		getCreateApiKeyUrl(response.status, baseUrl),
-	);
-	const diagnosticMessage = joinDiagnosticParts(
-		`kind=http`,
-		`status=${response.status}`,
-		`baseUrl=${truncateSingleLine(baseUrl)}`,
-		`statusText=${response.statusText || 'unknown'}`,
-		serverMessage ? `serverMessage=${serverMessage}` : undefined,
-		responseText && responseText !== serverMessage
-			? `body=${truncateSingleLine(responseText)}`
-			: undefined,
-	);
+export async function classifyHttpError<T extends ResponseLike>(response: T): Promise<HttpErrorClassification> {
+	let code: string | undefined;
+	let message: string | undefined;
+	let bodyPreview: string | undefined;
 
-	return new DeepSeekRequestError({
-		message: `DeepSeek API request failed with HTTP ${response.status}`,
-		userSummary,
-		kind: 'http',
-		baseUrl,
-		status: response.status,
-		code: `HTTP_${response.status}`,
-		diagnosticMessage,
-	});
-}
+	try {
+		const bodyText = await response.text();
+		bodyPreview = truncateBody(bodyText);
 
-export function normalizeRequestError(error: unknown): Error {
-	if (error instanceof DeepSeekRequestError) {
-		return error;
+		const contentType = (response as unknown as { headers?: Headers }).headers?.get?.('content-type') ?? '';
+		const isJson = contentType.includes('json');
+
+		if (isJson || looksLikeJson(bodyText)) {
+			const json = JSON.parse(bodyText);
+			if (json && typeof json === 'object') {
+				code = typeof json.error?.code === 'string' ? json.error.code : typeof json.type === 'string' ? json.type : undefined;
+				message =
+					typeof json.error?.message === 'string'
+						? json.error.message
+						: typeof json.message === 'string'
+							? json.message
+							: undefined;
+			}
+		}
+	} catch (error: unknown) {
+		logger.warn(`Failed to read HTTP ${response.status} error body:`, error);
 	}
 
-	if (!(error instanceof Error)) {
-		const value = truncateSingleLine(String(error));
-		return new DeepSeekRequestError({
-			message: `DeepSeek request failed with a non-Error value: ${value}`,
-			userSummary: t('error.unknown', value),
-			kind: 'unknown',
-			diagnosticMessage: `kind=unknown error=${value}`,
-		});
-	}
-
-	const causeInfo = getCauseInfo(error);
-	if (!causeInfo) {
-		return error;
-	}
-
-	const code = causeInfo.code ?? causeInfo.name;
-	const userSummary = getNetworkErrorMessage(code);
-	const enhanced = new DeepSeekRequestError({
-		message: code
-			? `DeepSeek request failed due to network error ${code}`
-			: 'DeepSeek request failed due to a network error',
-		userSummary,
-		kind: 'network',
-		code,
-		cause: error,
-		diagnosticMessage: joinDiagnosticParts(
-			`kind=network`,
-			code ? `code=${code}` : undefined,
-			causeInfo.name ? `name=${causeInfo.name}` : undefined,
-			`message=${truncateSingleLine(error.message)}`,
-			causeInfo.message ? `cause=${causeInfo.message}` : undefined,
-		),
-	});
-	enhanced.stack = error.stack;
-	return enhanced;
+	const kind = categorizeStatus(response.status);
+	return { status: response.status, code, message, bodyPreview, kind };
 }
 
-export function createUserFacingError(error: Error): Error {
-	const message =
-		error instanceof DeepSeekRequestError
-			? formatMarkdownMessage(error.userSummary, getErrorActions(error, errorActionUrlStore.get()))
-			: error.message;
-	const displayError = new Error(message);
-	displayError.stack = undefined;
-	return displayError;
+function categorizeStatus(status: number): HttpErrorClassification['kind'] {
+	if (status >= 400 && status < 500) return 'client';
+	if (status >= 500 && status < 600) return 'server';
+	if (status === 502 || status === 504) return 'proxy';
+	return 'unknown';
 }
 
-function getHttpErrorMessage(status: number, createApiKeyUrl?: string): string {
-	switch (status) {
-		case 400:
-			return t('error.http.400', status);
-		case 401:
-			return createApiKeyUrl
-				? t('error.http.401.withCreateApiKeyLink', status, createApiKeyUrl)
-				: t('error.http.401', status);
-		case 402:
-			return t('error.http.402', status);
-		case 422:
-			return t('error.http.422', status);
-		case 429:
-			return t('error.http.429', status);
-		case 500:
-			return t('error.http.500', status);
-		case 503:
-			return t('error.http.503', status);
+function truncateBody(body: string): string {
+	if (body.length > MAX_DIAGNOSTIC_FIELD_LENGTH) {
+		return `${body.slice(0, MAX_DIAGNOSTIC_FIELD_LENGTH)}…`;
+	}
+	return body;
+}
+
+function looksLikeJson(body: string): boolean {
+	return body.startsWith('{') || body.startsWith('[');
+}
+
+function buildHttpErrorMessage(classification: HttpErrorClassification, baseUrl: string | undefined): string {
+	const host = extractHostLabel(baseUrl);
+	const service = isOfficialEndpoint(host) ? t('service.miMo') : host;
+	const actionBlock = buildActionBlock(classification.status);
+
+	if (classification.status === 401) return t('error.http.401', service) + actionBlock;
+	if (classification.status === 402) return t('error.http.402', service) + actionBlock;
+	if (classification.status === 422) return buildUnprocessableEntityMessage(classification, service);
+	if (classification.status === 429) return t('error.http.429', service);
+	if (classification.status >= 500 && classification.status < 600) {
+		return t('error.http.5xx', service, classification.status) + actionBlock;
+	}
+	return buildGenericHttpMessage(classification, service);
+}
+
+function buildUnprocessableEntityMessage(classification: HttpErrorClassification, service: string): string {
+	const code = classification.code ?? '';
+	const message = classification.message ?? '';
+
+	if (/model_not_found|model.*not.*exist|not.*found/i.test(`${code} ${message}`)) {
+		return t('error.http.422.modelNotFound', service, message);
+	}
+
+	if (/max_tokens|context_length|token.*limit/i.test(message)) {
+		return t('error.http.422.tokenLimit', service);
+	}
+
+	if (code === 'invalid_request_error' || code === 'request_too_large') {
+		return t('error.http.422.badRequest', service, message);
+	}
+
+	return t('error.http.422', service, message || code);
+}
+
+function buildGenericHttpMessage(classification: HttpErrorClassification, service: string): string {
+	if (classification.code || classification.message) {
+		return t('error.http.withBody', service, classification.status, classification.message ?? classification.code!);
+	}
+
+	return t('error.http.noBody', service, classification.status);
+}
+
+function buildActionBlock(status: number): string {
+	const links = collectActionLinks(status);
+	if (!links.length) {
+		return '';
+	}
+
+	return `\n\n${links.map(({ label, url }) => `* [${label}](${url})`).join('\n')}`;
+}
+
+function collectActionLinks(status: number): Array<{ label: string; url: string }> {
+	const entries: Array<{ label: string; url: string }> = [];
+	const seen = new Set<string>();
+
+	const providers = status >= 500 ? API_PROVIDER_HTTP_ERROR_LINKS['5xx'] : API_PROVIDER_HTTP_ERROR_LINKS[status];
+	if (providers) {
+		for (const { labelKey, url } of Object.values(providers)) {
+			if (seen.has(url)) continue;
+			seen.add(url);
+			entries.push({ label: t(labelKey), url });
+		}
+	}
+
+	return entries;
+}
+
+export function classifyNetworkError(error: unknown): NetworkErrorClassification {
+	if (!error || typeof error !== 'object') return 'generic';
+	if (error instanceof AggregateError && error.message === 'All promises were rejected') return 'interrupted';
+	const code = normalizeErrorCode((error as NodeJS.ErrnoException).code);
+
+	switch (code) {
+		case 'ENOTFOUND':
+			return 'dns';
+		case 'ECONNREFUSED':
+		case 'ENETUNREACH':
+		case 'EHOSTUNREACH':
+		case 'ECONNRESET':
+			return 'unreachable';
+		case 'ETIMEDOUT':
+		case 'UND_ERR_HEADERS_TIMEOUT':
+			return 'timeout';
+		case 'DEPTH_ZERO_SELF_SIGNED_CERT':
+		case 'ERR_TLS_CERT_ALTNAME_INVALID':
+		case 'UNABLE_TO_VERIFY_LEAF_SIGNATURE':
+		case 'UNABLE_TO_GET_ISSUER_CERT':
+		case 'UNABLE_TO_GET_ISSUER_CERT_LOCALLY':
+		case 'CERT_HAS_EXPIRED':
+		case 'CERT_NOT_YET_VALID':
+		case 'ERR_TLS_HANDSHAKE_TIMEOUT':
+			return 'tls';
+		case 'ECONNABORTED':
+		case 'UND_ERR_ABORTED':
+			return 'aborted';
+		case 'ERR_NETWORK':
+			return 'unreachable';
+		case 'EAI_AGAIN':
+			return 'dns';
+		case 'CERT_REJECTED':
+		case 'ERR_SOCKET_CLOSED_BEFORE_CONNECTION':
+			return 'tls';
+		case 'ERR_CONNECTION_REFUSED':
+		case 'ERR_SOCKET_CONNECTION_TIMEOUT':
+			return 'unreachable';
+		case 'EPIPE':
+		case 'EHOSTDOWN':
+		case 'EADDRNOTAVAIL':
+		case 'EADDRINUSE':
+		case 'ECONNRESET':
+		case 'EPROTO':
+		case 'ELOOP':
+		case 'EBADF':
+			return 'protocol';
+		case 'DEPTH_ZERO_SELF_SIGNED_CERT':
+		case 'ERR_TLS_CERT_ALTNAME_INVALID':
+			return 'configuration';
+		case 'ABORT_ERR':
+		case 'ERR_ABORTED':
+		case 'ECONNABORTED':
+		case 'UND_ERR_ABORTED':
+			return 'aborted';
+		case 'ENETDOWN':
+		case 'ENETUNREACH':
+		case 'EHOSTUNREACH':
+			return 'unreachable';
 		default:
-			return t('error.http.generic', status);
+			if (typeof (error as { type?: unknown }).type === 'string') {
+				const type = ((error as { type?: unknown }).type as string).toLowerCase();
+				if (type.includes('timeout')) return 'timeout';
+				if (type.includes('aborted') || type.includes('abort')) return 'aborted';
+			}
+			return 'generic';
 	}
 }
 
-function getNetworkErrorMessage(code: string | undefined): string {
-	const errorCode = code ?? 'UNKNOWN';
+export function buildNetworkErrorMessage(kind: NetworkErrorClassification, baseUrl?: string): string {
+	const host = extractHostLabel(baseUrl);
+	const service = isOfficialEndpoint(host) ? t('service.miMo') : host;
 
-	switch (getNetworkErrorCategory(code)) {
+	switch (kind) {
 		case 'dns':
-			return t('error.network.dns', errorCode);
+			return t('error.network.dns', service);
 		case 'unreachable':
-			return t('error.network.unreachable', errorCode);
-		case 'interrupted':
-			return t('error.network.interrupted', errorCode);
+			return t('error.network.unreachable', service);
 		case 'timeout':
-			return t('error.network.timeout', errorCode);
+			return t('error.network.timeout', service);
 		case 'tls':
-			return t('error.network.tls', errorCode);
+			return t('error.network.tls', service);
 		case 'aborted':
-			return t('error.network.aborted', errorCode);
+			return t('error.network.aborted');
+		case 'interrupted':
+			return t('error.network.interrupted');
 		case 'protocol':
-			return t('error.network.protocol', errorCode);
+			return t('error.network.protocol', service);
 		case 'configuration':
-			return t('error.network.configuration', errorCode);
+			return t('error.network.configuration', host);
 		case 'generic':
-			return t('error.network.generic', errorCode);
+			return t('error.network.generic', service);
 	}
 }
 
-function getNetworkErrorCategory(code: string | undefined): NetworkErrorCategory {
-	if (!code) {
-		return 'generic';
+export function buildMiMoCustomEndpointMessage(error: MiMoRequestError): string {
+	if (!error.baseUrl) return '';
+
+	try {
+		const url = new URL(error.baseUrl);
+		if (isOfficialEndpoint(url.hostname)) return '';
+	} catch {
+		return '';
 	}
 
-	if (isKnownNetworkErrorCode(code)) {
-		return NETWORK_ERROR_CATEGORY_BY_CODE[code];
+	if (error.status === 401) {
+		return t('error.customEndpoint.auth');
+	}
+	if (error.status === 403) {
+		return t('error.customEndpoint.forbidden');
+	}
+	if (error.status && error.status >= 500) {
+		return t('error.customEndpoint.unavailable', error.baseUrl);
 	}
 
-	if (code.startsWith('ERR_TLS_') || code.startsWith('ERR_SSL_')) {
-		return 'tls';
-	}
-
-	return code.startsWith('HPE_') ? 'protocol' : 'generic';
+	return '';
 }
 
-function isKnownNetworkErrorCode(
-	code: string,
-): code is keyof typeof NETWORK_ERROR_CATEGORY_BY_CODE {
-	return Object.hasOwn(NETWORK_ERROR_CATEGORY_BY_CODE, code);
-}
-
-function extractServerMessage(responseText: string): string | undefined {
-	const trimmed = responseText.trim();
-	if (!trimmed) {
-		return undefined;
+function extractHostLabel(baseUrl: string | undefined): string {
+	if (!baseUrl) {
+		return t('provider.miMo');
 	}
 
 	try {
-		const parsed: unknown = JSON.parse(trimmed);
-		const error = getObjectProperty(parsed, 'error');
-		const message =
-			getStringProperty(error, 'message') ??
-			getStringProperty(parsed, 'message') ??
-			(typeof error === 'string' ? error : undefined);
-		return message ? truncateSingleLine(message) : undefined;
+		return new URL(baseUrl).hostname;
 	} catch {
-		return truncateSingleLine(trimmed);
+		return baseUrl;
 	}
 }
 
-function getCauseInfo(
-	error: Error,
-): { code?: string; name?: string; message?: string } | undefined {
-	const cause = (error as Error & { cause?: unknown }).cause;
-	if (!cause) {
-		return undefined;
+function normalizeErrorCode(code: unknown): string {
+	if (code === undefined || code === null) return '';
+	if (typeof code === 'string') return code;
+	if (code instanceof Error && typeof code.message === 'string') return code.message;
+	return String(code);
+}
+
+export function buildFailureSummary(error: unknown): string {
+	if (error instanceof MiMoRequestError) {
+		return `**${error.name}** · ${error.kind} · ${error.diagnosticMessage}`;
 	}
 
-	if (cause instanceof Error) {
-		return {
-			code: getStringProperty(cause, 'code'),
-			name: cause.name,
-			message:
-				cause.message && cause.message !== error.message
-					? truncateSingleLine(cause.message)
-					: undefined,
-		};
+	if (error instanceof Error) {
+		return `**${error.name}** · ${error.message}`;
 	}
 
-	if (typeof cause === 'object') {
-		return {
-			code: getStringProperty(cause, 'code'),
-			name: getStringProperty(cause, 'name'),
-			message: truncateOptional(getStringProperty(cause, 'message')),
-		};
+	return `**UnknownError**`;
+}
+
+export function createUserFacingError(error: unknown): Error {
+	if (error instanceof MiMoRequestError) {
+		return new Error(error.userSummary, { cause: error });
 	}
-
-	return { message: truncateSingleLine(String(cause)) };
-}
-
-function getObjectProperty(value: unknown, key: string): unknown {
-	return typeof value === 'object' && value !== null
-		? (value as Record<string, unknown>)[key]
-		: undefined;
-}
-
-function getStringProperty(value: unknown, key: string): string | undefined {
-	const property = getObjectProperty(value, key);
-	return typeof property === 'string' && property.length > 0 ? property : undefined;
-}
-
-function formatMarkdownMessage(
-	summary: string,
-	actions: readonly ErrorActionLink[] | undefined = undefined,
-): string {
-	const formattedSummary = `**${escapeBoldText(summary)}**`;
-	const actionLinks = actions?.map(formatActionLink).join(' · ');
-	return actionLinks
-		? [formattedSummary + '\\', '\\', `**${actionLinks}**`].join('\n')
-		: formattedSummary;
-}
-
-function formatActionLink(action: ErrorActionLink): string {
-	return `[${t(action.labelKey)}](${action.url})`;
-}
-
-function getErrorActions(
-	error: DeepSeekRequestError,
-	actionUrls: ErrorActionUrls,
-): readonly ErrorActionLink[] {
-	if (error.kind === 'http' && error.status !== undefined && error.baseUrl) {
-		return getHttpErrorActions(error.status, error.baseUrl, actionUrls);
+	if (error instanceof Error) {
+		return error;
 	}
-
-	return getDiagnosticErrorActions(actionUrls);
-}
-
-function getHttpErrorActions(
-	status: number,
-	baseUrl: string,
-	actionUrls: ErrorActionUrls,
-): readonly ErrorActionLink[] {
-	return [
-		...getUniversalHttpErrorActions(status, actionUrls),
-		...getProviderHttpErrorActions(status, baseUrl),
-		...getDiagnosticErrorActions(actionUrls),
-	];
-}
-
-function getUniversalHttpErrorActions(
-	status: number,
-	actionUrls: ErrorActionUrls,
-): readonly ErrorActionLink[] {
-	const url = actionUrls.configureApiKey;
-	return status === 401 && url ? [{ labelKey: 'error.action.setApiKey', url }] : [];
-}
-
-function getProviderHttpErrorActions(status: number, baseUrl: string): readonly ErrorActionLink[] {
-	if (status === 401) {
-		return [];
-	}
-
-	const link = getProviderHttpErrorLink(status, baseUrl);
-	return link ? [{ labelKey: link.labelKey, url: link.url }] : [];
-}
-
-function getProviderHttpErrorLink(
-	status: number,
-	baseUrl: string,
-): HttpErrorLinkDefinition | undefined {
-	const providerId = identifyApiProvider(baseUrl);
-	const statusKey = getHttpErrorLinkStatusKey(status);
-	return providerId && statusKey ? API_PROVIDER_HTTP_ERROR_LINKS[statusKey][providerId] : undefined;
-}
-
-function getCreateApiKeyUrl(status: number, baseUrl: string): string | undefined {
-	return status === 401 ? getProviderHttpErrorLink(status, baseUrl)?.url : undefined;
-}
-
-function getDiagnosticErrorActions(actionUrls: ErrorActionUrls): readonly ErrorActionLink[] {
-	const url = actionUrls.showLogs;
-	return url ? [{ labelKey: 'error.action.viewDetails', url }] : [];
-}
-
-function joinDiagnosticParts(...parts: (string | undefined)[]): string {
-	return parts.filter(Boolean).join(' ');
-}
-
-function truncateSingleLine(value: string): string {
-	const singleLine = value.replace(/\s+/g, ' ').trim();
-	return singleLine.length > MAX_DIAGNOSTIC_FIELD_LENGTH
-		? `${singleLine.slice(0, MAX_DIAGNOSTIC_FIELD_LENGTH)}...`
-		: singleLine;
-}
-
-function escapeBoldText(value: string): string {
-	return value.replace(/\*/g, '\\*');
-}
-
-function truncateOptional(value: string | undefined): string | undefined {
-	return value ? truncateSingleLine(value) : undefined;
-}
-
-function identifyApiProvider(baseUrl: string): ApiProviderId | undefined {
-	try {
-		const hostname = new URL(baseUrl).hostname.toLowerCase();
-		return hostname === OFFICIAL_DEEPSEEK_API_HOST ? 'deepseek' : undefined;
-	} catch {
-		return undefined;
-	}
-}
-
-function getHttpErrorLinkStatusKey(status: number): HttpErrorLinkStatusKey | undefined {
-	if (status === 401 || status === 402) {
-		return status;
-	}
-
-	return status >= 500 && status <= 599 ? '5xx' : undefined;
+	return new Error(String(error));
 }

@@ -18,10 +18,10 @@ import { processToolFlow } from './tools/flow';
 import { createVisionModelGetter, setVisionProxyModel } from './vision/index';
 
 /**
- * DeepSeek Chat Provider — implements vscode.LanguageModelChatProvider so
- * DeepSeek V4 models appear directly in the Copilot Chat model picker.
+ * MiMo Chat Provider — implements vscode.LanguageModelChatProvider so
+ * MiMo models appear directly in the Copilot Chat model picker.
  */
-export class DeepSeekChatProvider implements vscode.LanguageModelChatProvider {
+export class MiMoChatProvider implements vscode.LanguageModelChatProvider {
 	private readonly authManager: AuthManager;
 	private readonly globalStorageUri: vscode.Uri;
 	private readonly onDidChangeLanguageModelChatInformationEmitter = new vscode.EventEmitter<void>();
@@ -49,11 +49,11 @@ export class DeepSeekChatProvider implements vscode.LanguageModelChatProvider {
 			this.onDidChangeLanguageModelChatInformationEmitter,
 			// Settings-based fallback API key + vision model changes.
 			vscode.workspace.onDidChangeConfiguration((e) => {
-				if (e.affectsConfiguration('deepseek-copilot.apiKey')) {
+				if (e.affectsConfiguration('mimo-copilot.apiKey')) {
 					this.onDidChangeLanguageModelChatInformationEmitter.fire();
 				}
 
-				if (e.affectsConfiguration('deepseek-copilot.visionModel')) {
+				if (e.affectsConfiguration('mimo-copilot.visionModel')) {
 					this.vision.reset();
 				}
 			}),
@@ -61,7 +61,7 @@ export class DeepSeekChatProvider implements vscode.LanguageModelChatProvider {
 			// When another window sets/clears the API key, refresh this window's
 			// model picker so the warning state stays in sync.
 			context.secrets.onDidChange((e) => {
-				if (e.key === 'deepseek-copilot.apiKey') {
+				if (e.key === 'mimo-copilot.apiKey') {
 					this.onDidChangeLanguageModelChatInformationEmitter.fire();
 				}
 			}),
@@ -98,13 +98,13 @@ export class DeepSeekChatProvider implements vscode.LanguageModelChatProvider {
 
 		// Force the host to re-pull `provideLanguageModelChatInformation` synchronously
 		// before the extension unloads. With `isActive = false` we now return [],
-		// which makes Copilot Chat drop DeepSeek models from the picker immediately
+		// which makes Copilot Chat drop MiMo models from the picker immediately
 		// instead of leaving stale entries behind after deactivate. The returned
 		// model list itself is unused — we only call this for its side effect.
 		try {
-			await vscode.lm.selectChatModels({ vendor: 'deepseek' });
+			await vscode.lm.selectChatModels({ vendor: 'mimo' });
 		} catch (error) {
-			logger.warn('Failed to refresh DeepSeek models during deactivate', error);
+			logger.warn('Failed to refresh MiMo models during deactivate', error);
 		}
 	}
 

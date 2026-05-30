@@ -85,7 +85,7 @@ function buildThinkingEffortSchema() {
 }
 
 function resolveDetailKey(m: ModelDefinition): string | undefined {
-	const suffix = m.id.startsWith('deepseek-v4-') ? m.id.slice('deepseek-v4-'.length) : m.id;
+	const suffix = m.id.startsWith('mimo-') ? m.id.slice('mimo-'.length) : m.id;
 	const key = `model.${suffix}.detail`;
 	const translated = t(key);
 	return translated !== key ? key : undefined;

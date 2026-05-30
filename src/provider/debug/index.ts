@@ -8,9 +8,9 @@ export type {
 	CacheDiagnosticsRun,
 	ReplayMarkerReportTrigger,
 } from './diagnostics';
-export { dumpDeepSeekRequest, dumpProviderInput, ensureRequestDumpRoot } from './dump';
+export { dumpMiMoRequest, dumpProviderInput, ensureRequestDumpRoot } from './dump';
 export {
-	classifyDeepSeekRequest,
+	classifyMiMoRequest,
 	classifyProviderRequest,
 	formatRequestLogLine,
 	type RequestKind,

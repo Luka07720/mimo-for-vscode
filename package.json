@@ -1,7 +1,7 @@
 {
-  "name": "deepseek-v4-for-copilot",
-  "displayName": "DeepSeek V4 for Copilot Chat",
-  "description": "Pick DeepSeek V4 Pro & Flash from the Copilot Chat model picker. Vision, thinking mode, agent tools — zero config, BYOK.",
+  "name": "mimo-for-copilot",
+  "displayName": "MiMo for Copilot Chat",
+  "description": "Pick MiMo Pro & Flash from the Copilot Chat model picker. Vision, thinking mode, agent tools — zero config, BYOK.",
   "icon": "resources/icon.png",
   "version": "0.5.3",
   "publisher": "Vizards",
@@ -20,9 +20,9 @@
     "Programming Languages"
   ],
   "keywords": [
-    "deepseek",
-    "deepseek v4",
-    "deepseek-v4",
+    "mimo",
+    "mimo v2",
+    "mimo-v2",
     "copilot",
     "github copilot",
     "copilot chat",
@@ -43,69 +43,69 @@
   "contributes": {
     "languageModelChatProviders": [
       {
-        "vendor": "deepseek",
-        "displayName": "DeepSeek"
+        "vendor": "mimo",
+        "displayName": "MiMo"
       }
     ],
     "commands": [
       {
-        "command": "deepseek-copilot.setApiKey",
-        "title": "%deepseek-copilot.command.setApiKey%"
+        "command": "mimo-copilot.setApiKey",
+        "title": "%mimo-copilot.command.setApiKey%"
       },
       {
-        "command": "deepseek-copilot.getApiKey",
-        "title": "%deepseek-copilot.command.getApiKey%"
+        "command": "mimo-copilot.getApiKey",
+        "title": "%mimo-copilot.command.getApiKey%"
       },
       {
-        "command": "deepseek-copilot.clearApiKey",
-        "title": "%deepseek-copilot.command.clearApiKey%"
+        "command": "mimo-copilot.clearApiKey",
+        "title": "%mimo-copilot.command.clearApiKey%"
       },
       {
-        "command": "deepseek-copilot.setVisionModel",
-        "title": "%deepseek-copilot.command.setVisionModel%"
+        "command": "mimo-copilot.setVisionModel",
+        "title": "%mimo-copilot.command.setVisionModel%"
       },
       {
-        "command": "deepseek-copilot.openSettings",
-        "title": "%deepseek-copilot.command.openSettings%"
+        "command": "mimo-copilot.openSettings",
+        "title": "%mimo-copilot.command.openSettings%"
       },
       {
-        "command": "deepseek-copilot.showLogs",
-        "title": "%deepseek-copilot.command.showLogs%"
+        "command": "mimo-copilot.showLogs",
+        "title": "%mimo-copilot.command.showLogs%"
       },
       {
-        "command": "deepseek-copilot.openRequestDumpsFolder",
-        "title": "%deepseek-copilot.command.openRequestDumpsFolder%"
+        "command": "mimo-copilot.openRequestDumpsFolder",
+        "title": "%mimo-copilot.command.openRequestDumpsFolder%"
       }
     ],
     "walkthroughs": [
       {
-        "id": "deepseekGettingStarted",
-        "title": "%deepseek-copilot.walkthrough.title%",
-        "description": "%deepseek-copilot.walkthrough.description%",
+        "id": "mimoGettingStarted",
+        "title": "%mimo-copilot.walkthrough.title%",
+        "description": "%mimo-copilot.walkthrough.description%",
         "steps": [
           {
             "id": "setApiKey",
-            "title": "%deepseek-copilot.walkthrough.setApiKey.title%",
-            "description": "%deepseek-copilot.walkthrough.setApiKey.description%",
+            "title": "%mimo-copilot.walkthrough.setApiKey.title%",
+            "description": "%mimo-copilot.walkthrough.setApiKey.description%",
             "media": {
               "markdown": "resources/walkthrough/set-api-key.md"
             },
             "completionEvents": [
-              "onCommand:deepseek-copilot.setApiKey"
+              "onCommand:mimo-copilot.setApiKey"
             ]
           },
           {
             "id": "showModels",
-            "title": "%deepseek-copilot.walkthrough.showModels.title%",
-            "description": "%deepseek-copilot.walkthrough.showModels.description%",
+            "title": "%mimo-copilot.walkthrough.showModels.title%",
+            "description": "%mimo-copilot.walkthrough.showModels.description%",
             "media": {
               "markdown": "resources/walkthrough/show-models.md"
             }
           },
           {
             "id": "advancedSettings",
-            "title": "%deepseek-copilot.walkthrough.advancedSettings.title%",
-            "description": "%deepseek-copilot.walkthrough.advancedSettings.description%",
+            "title": "%mimo-copilot.walkthrough.advancedSettings.title%",
+            "description": "%mimo-copilot.walkthrough.advancedSettings.description%",
             "media": {
               "markdown": "resources/walkthrough/advanced-settings.md"
             }
@@ -114,58 +114,63 @@
       }
     ],
     "configuration": {
-      "title": "%deepseek-copilot.config.title%",
+      "title": "%mimo-copilot.config.title%",
       "properties": {
-        "deepseek-copilot.baseUrl": {
+        "mimo-copilot.baseUrl": {
           "type": "string",
           "default": "https://api.deepseek.com",
-          "description": "%deepseek-copilot.config.baseUrl.description%"
+          "description": "%mimo-copilot.config.baseUrl.description%"
         },
-        "deepseek-copilot.maxTokens": {
+        "mimo-copilot.maxTokens": {
           "type": "number",
           "default": 0,
           "minimum": 0,
-          "description": "%deepseek-copilot.config.maxTokens.description%"
+          "description": "%mimo-copilot.config.maxTokens.description%"
         },
-        "deepseek-copilot.experimental.stabilizeToolList": {
+        "mimo-copilot.experimental.stabilizeToolList": {
           "type": "boolean",
           "default": false,
-          "markdownDescription": "%deepseek-copilot.config.experimental.stabilizeToolList.description%",
+          "markdownDescription": "%mimo-copilot.config.experimental.stabilizeToolList.description%",
           "tags": [
             "experimental"
           ]
         },
-        "deepseek-copilot.modelIdOverrides": {
+        "mimo-copilot.modelIdOverrides": {
           "type": "object",
           "default": {
-            "deepseek-v4-flash": "deepseek-v4-flash",
-            "deepseek-v4-pro": "deepseek-v4-pro"
+            "mimo-v2-flash": "mimo-v2-flash",
+            "mimo-v2.5": "mimo-v2.5",
+            "mimo-v2.5-pro": "mimo-v2.5-pro"
           },
-          "description": "%deepseek-copilot.config.modelIdOverrides.description%",
+          "description": "%mimo-copilot.config.modelIdOverrides.description%",
           "additionalProperties": false,
           "properties": {
-            "deepseek-v4-flash": {
+            "mimo-v2-flash": {
               "type": "string",
-              "description": "%deepseek-copilot.config.modelIdOverrides.deepseek-v4-flash.description%"
+              "description": "%mimo-copilot.config.modelIdOverrides.mimo-v2-flash.description%"
             },
-            "deepseek-v4-pro": {
+            "mimo-v2.5": {
               "type": "string",
-              "description": "%deepseek-copilot.config.modelIdOverrides.deepseek-v4-pro.description%"
+              "description": "%mimo-copilot.config.modelIdOverrides.mimo-v2.5.description%"
+            },
+            "mimo-v2.5-pro": {
+              "type": "string",
+              "description": "%mimo-copilot.config.modelIdOverrides.mimo-v2.5-pro.description%"
             }
           }
         },
-        "deepseek-copilot.visionModel": {
+        "mimo-copilot.visionModel": {
           "type": "string",
           "default": "",
-          "description": "%deepseek-copilot.config.visionModel.description%"
+          "description": "%mimo-copilot.config.visionModel.description%"
         },
-        "deepseek-copilot.visionPrompt": {
+        "mimo-copilot.visionPrompt": {
           "type": "string",
           "editPresentation": "multilineText",
           "default": "Describe all image attachments in this message.\n\nIf there is one image, describe it directly.\nIf there are multiple images:\n1. Describe each image separately, preserving their order.\n2. Then provide a combined description explaining the overall context and relationships across the images.\n\nReturn one concise factual description suitable for inserting into a text-only chat prompt. Include visible text, objects, UI elements, people, and relevant context. Do not invent details.",
-          "description": "%deepseek-copilot.config.visionPrompt.description%"
+          "description": "%mimo-copilot.config.visionPrompt.description%"
         },
-        "deepseek-copilot.debugMode": {
+        "mimo-copilot.debugMode": {
           "type": "string",
           "default": "minimal",
           "enum": [
@@ -174,23 +179,23 @@
             "verbose"
           ],
           "enumItemLabels": [
-            "%deepseek-copilot.config.debugMode.minimal.label%",
-            "%deepseek-copilot.config.debugMode.metadata.label%",
-            "%deepseek-copilot.config.debugMode.verbose.label%"
+            "%mimo-copilot.config.debugMode.minimal.label%",
+            "%mimo-copilot.config.debugMode.metadata.label%",
+            "%mimo-copilot.config.debugMode.verbose.label%"
           ],
           "markdownEnumDescriptions": [
-            "%deepseek-copilot.config.debugMode.minimal.description%",
-            "%deepseek-copilot.config.debugMode.metadata.description%",
-            "%deepseek-copilot.config.debugMode.verbose.description%"
+            "%mimo-copilot.config.debugMode.minimal.description%",
+            "%mimo-copilot.config.debugMode.metadata.description%",
+            "%mimo-copilot.config.debugMode.verbose.description%"
           ],
-          "markdownDescription": "%deepseek-copilot.config.debugMode.description%"
+          "markdownDescription": "%mimo-copilot.config.debugMode.description%"
         }
       }
     }
   },
   "scripts": {
     "clean": "node -e \"require('node:fs').rmSync('out', { recursive: true, force: true, maxRetries: process.platform === 'win32' ? 10 : 0 })\"",
-    "vscode:prepublish": "bash .github/scripts/prepare-marketplace-readme.sh && npm run compile",
+    "vscode:prepublish": "npm run compile",
     "compile": "npm run clean && tsc -p ./",
     "watch": "npm run clean && tsc -watch -p ./",
     "lint": "oxlint",

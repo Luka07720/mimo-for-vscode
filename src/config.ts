@@ -4,12 +4,12 @@ import { CONFIG_SECTION } from './consts';
 export type DebugMode = 'minimal' | 'metadata' | 'verbose';
 
 /**
- * Get DeepSeek API base URL from settings.
+ * Get MiMo API base URL from settings.
  * Falls back to the official endpoint when not configured.
  */
 export function getBaseUrl(): string {
 	const config = vscode.workspace.getConfiguration(CONFIG_SECTION);
-	return config.get<string>('baseUrl') || 'https://api.deepseek.com';
+	return config.get<string>('baseUrl') || 'https://api.xiaomimimo.com/anthropic';
 }
 
 /**
@@ -38,9 +38,6 @@ export function getMaxTokens(): number | undefined {
 
 /**
  * Diagnostic mode. `verbose` also enables metadata logs.
- *
- * The legacy boolean `debug` setting is still read as a fallback so old
- * settings keep working even if migration cannot update every scope.
  */
 export function getDebugMode(): DebugMode {
 	const config = vscode.workspace.getConfiguration(CONFIG_SECTION);
@@ -50,16 +47,10 @@ export function getDebugMode(): DebugMode {
 	return config.get<boolean>('debug', false) ? 'metadata' : 'minimal';
 }
 
-/**
- * Whether to log privacy-preserving diagnostic debug information.
- */
 export function getDebugLoggingEnabled(): boolean {
 	return getDebugMode() !== 'minimal';
 }
 
-/**
- * Whether to write full DeepSeek request payloads to disk.
- */
 export function getRequestDumpEnabled(): boolean {
 	return getDebugMode() === 'verbose';
 }
@@ -69,12 +60,6 @@ export function getStabilizeToolListEnabled(): boolean {
 	return config.get<boolean>('experimental.stabilizeToolList', false);
 }
 
-/**
- * Migrate the legacy boolean `deepseek-copilot.debug` setting to `debugMode`.
- *
- * `debug: true` maps to `debugMode: metadata`; `debug: false` maps to the
- * default `minimal`, so it only needs cleanup.
- */
 export async function migrateLegacyDebugSetting(): Promise<void> {
 	await migrateLegacyDebugSettingAtScope(vscode.ConfigurationTarget.Global);
 	if (vscode.workspace.workspaceFile || vscode.workspace.workspaceFolders?.length) {

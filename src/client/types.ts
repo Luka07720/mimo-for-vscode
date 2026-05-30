@@ -13,10 +13,10 @@ export interface HttpErrorLinkDefinition {
 	url: string;
 }
 
-export type ApiProviderId = 'deepseek';
+export type ApiProviderId = 'mimo';
 export type HttpErrorLinkStatusKey = 401 | 402 | '5xx';
 
-export type DeepSeekRequestErrorKind = 'http' | 'network' | 'unknown';
+export type MiMoRequestErrorKind = 'http' | 'network' | 'unknown';
 
 export type NetworkErrorCategory =
 	| 'dns'

@@ -1,5 +1,5 @@
 import vscode from 'vscode';
-import type { DeepSeekRequest, DeepSeekTool } from '../../types';
+import type { MiMoRequest, MiMoTool } from '../../types';
 
 export type RequestKind =
 	| 'main-agent'
@@ -35,19 +35,37 @@ export function classifyProviderRequest(input: {
 	});
 }
 
-export function classifyDeepSeekRequest(input: {
-	request: DeepSeekRequest;
+export function classifyMiMoRequest(input: {
+	request: MiMoRequest;
 	inputMessages?: readonly vscode.LanguageModelChatRequestMessage[];
 }): RequestKind {
 	return classifyRequest({
 		firstText:
-			input.request.messages[0]?.content ??
+			getRequestFirstText(input.request) ??
 			(input.inputMessages ? getFirstVscodeText(input.inputMessages) : ''),
 		latestUserText:
 			(input.inputMessages ? getLatestVscodeUserText(input.inputMessages) : '') ||
-			getLatestDeepSeekUserText(input.request),
-		toolNames: input.request.tools?.map(getDeepSeekToolName) ?? [],
+			getLatestMiMoUserText(input.request),
+		toolNames: input.request.tools?.map(getMiMoToolName) ?? [],
 	});
+}
+
+function getRequestFirstText(request: MiMoRequest): string | undefined {
+	if (request.system) {
+		return request.system;
+	}
+	const firstMessage = request.messages[0];
+	if (!firstMessage) {
+		return undefined;
+	}
+	if (typeof firstMessage.content === 'string') {
+		return firstMessage.content;
+	}
+	if (Array.isArray(firstMessage.content)) {
+		const textBlock = firstMessage.content.find((block) => block.type === 'text');
+		return textBlock?.text as string | undefined;
+	}
+	return undefined;
 }
 
 function classifyRequest(input: {
@@ -86,8 +104,8 @@ function isOnlyTool(toolNames: readonly string[], toolName: string): boolean {
 	return toolNames.length === 1 && toolNames[0] === toolName;
 }
 
-function getDeepSeekToolName(tool: DeepSeekTool): string {
-	return tool.function.name;
+function getMiMoToolName(tool: MiMoTool): string {
+	return tool.name;
 }
 
 function getFirstVscodeText(messages: readonly vscode.LanguageModelChatRequestMessage[]): string {
@@ -121,11 +139,19 @@ function getVscodeMessageText(message: vscode.LanguageModelChatRequestMessage): 
 	return text;
 }
 
-function getLatestDeepSeekUserText(request: DeepSeekRequest): string {
+function getLatestMiMoUserText(request: MiMoRequest): string {
 	for (let index = request.messages.length - 1; index >= 0; index -= 1) {
 		const message = request.messages[index];
 		if (message.role === 'user') {
-			return message.content;
+			if (typeof message.content === 'string') {
+				return message.content;
+			}
+			if (Array.isArray(message.content)) {
+				const textBlock = message.content.find((block) => block.type === 'text');
+				if (textBlock) {
+					return textBlock.text as string;
+				}
+			}
 		}
 	}
 	return '';

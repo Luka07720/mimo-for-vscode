@@ -50,7 +50,7 @@ export function createVisionModelGetter(): {
  */
 export async function setVisionProxyModel(): Promise<void> {
 	const allModels = await vscode.lm.selectChatModels();
-	const candidates = allModels.filter((m) => m.vendor !== 'deepseek');
+	const candidates = allModels.filter((m) => m.vendor !== 'mimo');
 
 	if (candidates.length === 0) {
 		vscode.window.showInformationMessage(t('vision.noModel'));
@@ -71,20 +71,20 @@ export async function setVisionProxyModel(): Promise<void> {
 	});
 
 	if (picked) {
-		const config = vscode.workspace.getConfiguration('deepseek-copilot');
+		const config = vscode.workspace.getConfiguration('mimo-copilot');
 		await config.update('visionModel', picked.label, vscode.ConfigurationTarget.Global);
 	}
 }
 
 export function getVisionPrompt(): string {
-	const config = vscode.workspace.getConfiguration('deepseek-copilot');
+	const config = vscode.workspace.getConfiguration('mimo-copilot');
 	return (
 		config.get<string>('visionPrompt', IMAGE_DESCRIPTION_PROMPT).trim() || IMAGE_DESCRIPTION_PROMPT
 	);
 }
 
 function getConfiguredVisionModelId(): string | undefined {
-	const config = vscode.workspace.getConfiguration('deepseek-copilot');
+	const config = vscode.workspace.getConfiguration('mimo-copilot');
 	const id = config.get<string>('visionModel', '');
 	return id.trim() || undefined;
 }

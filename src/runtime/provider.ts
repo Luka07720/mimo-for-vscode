@@ -1,19 +1,19 @@
 import vscode from 'vscode';
 import { logger } from '../logger';
-import { DeepSeekChatProvider } from '../provider';
+import { MiMoChatProvider } from '../provider';
 
 export async function registerProvider(
 	context: vscode.ExtensionContext,
-): Promise<DeepSeekChatProvider> {
-	const provider = new DeepSeekChatProvider(context);
+): Promise<MiMoChatProvider> {
+	const provider = new MiMoChatProvider(context);
 
 	context.subscriptions.push(
-		vscode.commands.registerCommand('deepseek-copilot.setApiKey', () => provider.configureApiKey()),
-		vscode.commands.registerCommand('deepseek-copilot.clearApiKey', () => provider.clearApiKey()),
-		vscode.commands.registerCommand('deepseek-copilot.setVisionModel', () =>
+		vscode.commands.registerCommand('mimo-copilot.setApiKey', () => provider.configureApiKey()),
+		vscode.commands.registerCommand('mimo-copilot.clearApiKey', () => provider.clearApiKey()),
+		vscode.commands.registerCommand('mimo-copilot.setVisionModel', () =>
 			provider.setVisionProxyModel(),
 		),
-		vscode.lm.registerLanguageModelChatProvider('deepseek', provider),
+		vscode.lm.registerLanguageModelChatProvider('mimo', provider),
 	);
 
 	// Copilot Chat can serve cached model info without configurationSchema.

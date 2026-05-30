@@ -1,9 +1,12 @@
-export { DeepSeekClient } from './core';
+export { MiMoClient } from './core';
 export {
-	createHttpError,
+	MiMoRequestError,
+	isOfficialEndpoint,
+	buildMiMoCustomEndpointMessage,
+	buildNetworkErrorMessage,
+	buildFailureSummary,
 	createUserFacingError,
-	DeepSeekRequestError,
-	normalizeRequestError,
 	setErrorActionUrl,
+	getErrorActionUrl,
 } from './error';
-export type { DeepSeekRequestErrorKind, ErrorActionUrls } from './types';
+export type { MiMoRequestErrorKind, ErrorActionUrls } from './types';

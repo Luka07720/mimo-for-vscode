@@ -1,24 +1,20 @@
 import vscode from 'vscode';
 import { safeStringify } from '../json';
-import type { DeepSeekMessage, DeepSeekTool, DeepSeekToolCall } from '../types';
+import type { MiMoContentBlock, MiMoMessage, MiMoTool, MiMoToolUseBlock } from '../types';
 import { parseFirstReplayMarker } from './replay';
 
-/**
- * Convert VS Code chat messages to DeepSeek format.
- * Injects marker-replayed reasoning_content for assistant messages.
- */
 export function convertMessages(
 	messages: readonly vscode.LanguageModelChatRequestMessage[],
 	isThinkingModel: boolean,
-): DeepSeekMessage[] {
-	const result: DeepSeekMessage[] = [];
+): MiMoMessage[] {
+	const result: MiMoMessage[] = [];
 
 	for (const message of messages) {
 		const role = mapRole(message.role);
 
 		let content = '';
 		let thinkingContent = '';
-		const toolCalls: DeepSeekToolCall[] = [];
+		const toolUseBlocks: MiMoToolUseBlock[] = [];
 		const toolResults: Array<{ callId: string; content: string }> = [];
 
 		for (const part of message.content) {
@@ -27,13 +23,11 @@ export function convertMessages(
 			} else if (isLanguageModelThinkingPart(part)) {
 				thinkingContent += normalizeThinkingPartText(part.value);
 			} else if (part instanceof vscode.LanguageModelToolCallPart) {
-				toolCalls.push({
+				toolUseBlocks.push({
+					type: 'tool_use',
 					id: part.callId,
-					type: 'function',
-					function: {
-						name: part.name,
-						arguments: safeStringify(part.input),
-					},
+					name: part.name,
+					input: part.input as Record<string, unknown>,
 				});
 			} else if (part instanceof vscode.LanguageModelToolResultPart) {
 				let toolContent = '';
@@ -50,38 +44,62 @@ export function convertMessages(
 		}
 
 		if (role === 'assistant') {
-			if (content || toolCalls.length > 0) {
+			if (content || toolUseBlocks.length > 0 || thinkingContent) {
 				const replayMarker = isThinkingModel ? parseFirstReplayMarker(message) : undefined;
-				const msg: DeepSeekMessage = {
-					role: 'assistant' as const,
-					content: content || '',
-				};
-
-				if (toolCalls.length > 0) {
-					msg.tool_calls = toolCalls;
-				}
+				const contentBlocks: MiMoContentBlock[] = [];
 
 				if (isThinkingModel) {
-					msg.reasoning_content = getReasoningContent(replayMarker, thinkingContent);
+					const reasoningContent = getReasoningContent(replayMarker, thinkingContent);
+					if (reasoningContent) {
+						contentBlocks.push({
+							type: 'thinking',
+							thinking: reasoningContent,
+						});
+					}
 				}
 
-				result.push(msg);
+				if (content) {
+					contentBlocks.push({
+						type: 'text',
+						text: content,
+					});
+				}
+
+				for (const toolUse of toolUseBlocks) {
+					contentBlocks.push({
+						type: 'tool_use',
+						id: toolUse.id,
+						name: toolUse.name,
+						input: toolUse.input,
+					});
+				}
+
+				if (contentBlocks.length > 0) {
+					result.push({
+						role: 'assistant',
+						content: contentBlocks,
+					});
+				}
 			}
 		} else {
 			if (content) {
 				result.push({
-					role: role as 'user' | 'assistant',
+					role: 'user',
 					content: content,
 				});
 			}
 		}
 
-		// Tool result messages follow their associated assistant message
 		for (const tr of toolResults) {
 			result.push({
-				role: 'tool',
-				content: tr.content,
-				tool_call_id: tr.callId,
+				role: 'user',
+				content: [
+					{
+						type: 'tool_result',
+						tool_use_id: tr.callId,
+						content: tr.content,
+					},
+				],
 			});
 		}
 	}
@@ -121,38 +139,35 @@ function mapRole(role: vscode.LanguageModelChatMessageRole): 'user' | 'assistant
 	}
 }
 
-/**
- * Convert VS Code tool definitions to DeepSeek format.
- */
 export function convertTools(
 	tools: readonly vscode.LanguageModelChatTool[] | undefined,
-): DeepSeekTool[] | undefined {
+): MiMoTool[] | undefined {
 	if (!tools || tools.length === 0) {
 		return undefined;
 	}
 
 	return tools.map((tool) => ({
-		type: 'function' as const,
-		function: {
-			name: tool.name,
-			description: tool.description,
-			parameters: tool.inputSchema as Record<string, unknown> | undefined,
-		},
+		name: tool.name,
+		description: tool.description,
+		input_schema: (tool.inputSchema as Record<string, unknown>) ?? {},
 	}));
 }
 
-/**
- * Count total characters across all messages to calibrate chars-per-token ratio.
- */
-export function countMessageChars(messages: DeepSeekMessage[]): number {
+export function countMessageChars(messages: MiMoMessage[]): number {
 	let total = 0;
 	for (const msg of messages) {
-		total += msg.content?.length ?? 0;
-		total += msg.reasoning_content?.length ?? 0;
-		if (msg.tool_calls) {
-			for (const tc of msg.tool_calls) {
-				total += tc.function?.name?.length ?? 0;
-				total += tc.function?.arguments?.length ?? 0;
+		if (typeof msg.content === 'string') {
+			total += msg.content.length;
+		} else if (Array.isArray(msg.content)) {
+			for (const block of msg.content) {
+				if (block.type === 'text') {
+					total += (block as { text: string }).text?.length ?? 0;
+				} else if (block.type === 'thinking') {
+					total += (block as { thinking: string }).thinking?.length ?? 0;
+				} else if (block.type === 'tool_use') {
+					total += (block as { name: string }).name?.length ?? 0;
+					total += safeStringify((block as { input: unknown }).input)?.length ?? 0;
+				}
 			}
 		}
 	}

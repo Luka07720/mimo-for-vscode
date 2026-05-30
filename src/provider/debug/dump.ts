@@ -7,13 +7,13 @@ import { getRequestDumpEnabled } from '../../config';
 import { LANGUAGE_MODEL_CHAT_SYSTEM_ROLE } from '../../consts';
 import { safeStringify, toWellFormedString } from '../../json';
 import { logger } from '../../logger';
-import type { DeepSeekMessage, DeepSeekRequest } from '../../types';
+import type { MiMoMessage, MiMoRequest } from '../../types';
 import { parseReplayMarkerData, REPLAY_MARKER_MIME } from '../replay';
 import type { ConversationSegment } from '../segment';
 import { ACTIVATE_TOOL_PREFIX } from '../tools/consts';
 import type { VisionResolutionStats } from '../vision/index';
 import {
-	classifyDeepSeekRequest,
+	classifyMiMoRequest,
 	classifyProviderRequest,
 	formatModelFields,
 	formatRequestLogLine,
@@ -27,7 +27,7 @@ let dumpWriteQueue: Promise<void> = Promise.resolve();
 const REQUEST_OBSERVATIONS_FILE = '_request-observations.jsonl';
 const HASH_WINDOW_CHARS = 2_048;
 
-type DumpEvent = 'provider-input' | 'deepseek-request';
+type DumpEvent = 'provider-input' | 'mimo-request';
 type DumpStage = 'provider-input' | 'input' | 'resolved';
 
 interface DumpContext {
@@ -94,7 +94,7 @@ interface SystemPromptSummary extends CustomizationsSummary {
 	agentTagCount: number;
 }
 
-export interface DumpDeepSeekRequestOptions {
+export interface DumpMiMoRequestOptions {
 	globalStorageUri: vscode.Uri;
 	segment: ConversationSegment;
 	requestKind?: RequestKind;
@@ -135,7 +135,7 @@ export function dumpProviderInput(options: DumpProviderInputOptions): void {
 	const context = createDumpContext(
 		options.globalStorageUri,
 		options.segment,
-		'deepseek-provider-input',
+		'mimo-provider-input',
 		(providerInputDumpCounter += 1),
 		requestKind,
 	);
@@ -167,33 +167,33 @@ export function dumpProviderInput(options: DumpProviderInputOptions): void {
 }
 
 /**
- * Dump the FULL DeepSeek request payload (messages + tools) to disk verbatim
+ * Dump the FULL MiMo request payload (messages + tools) to disk verbatim
  * when debugMode is `verbose`. No truncation, no hashing - you get the
- * exact JSON that will be sent to the DeepSeek API (minus the auth header).
+ * exact JSON that will be sent to the MiMo API (minus the auth header).
  *
  * Files land under `<dump root>/<conversationSegmentId>/` so marker replay and
  * cache-lineage changes are easy to inspect across provider calls:
- *   deepseek-request-<timestamp>-NNNN.input.json     — VS Code input snapshot
- *   deepseek-request-<timestamp>-NNNN.resolved.json  — post-vision VS Code snapshot
- *   deepseek-request-<timestamp>-NNNN.json           — full request body
- *   deepseek-request-<timestamp>-NNNN.msg0.txt       — messages[0] content (system prompt)
+ *   mimo-request-<timestamp>-NNNN.input.json     — VS Code input snapshot
+ *   mimo-request-<timestamp>-NNNN.resolved.json  — post-vision VS Code snapshot
+ *   mimo-request-<timestamp>-NNNN.json           — full request body
+ *   mimo-request-<timestamp>-NNNN.msg0.txt       — messages[0] content (system prompt)
  */
-export function dumpDeepSeekRequest(
-	request: DeepSeekRequest,
-	options: DumpDeepSeekRequestOptions,
+export function dumpMiMoRequest(
+	request: MiMoRequest,
+	options: DumpMiMoRequestOptions,
 ): void {
 	if (!getRequestDumpEnabled()) return;
 
 	const requestKind =
 		options.requestKind ??
-		classifyDeepSeekRequest({
+		classifyMiMoRequest({
 			request,
 			inputMessages: options.inputMessages,
 		});
 	const context = createDumpContext(
 		options.globalStorageUri,
 		options.segment,
-		'deepseek-request',
+		'mimo-request',
 		(dumpCounter += 1),
 		requestKind,
 	);
@@ -217,13 +217,14 @@ export function dumpDeepSeekRequest(
 		);
 
 		if (msg0 && paths.msg0) {
-			await writeTextFile(paths.msg0, msg0.content);
+			const msg0Content = typeof msg0.content === 'string' ? msg0.content : JSON.stringify(msg0.content);
+			await writeTextFile(paths.msg0, msg0Content);
 		}
 
 		await writeDumpObservation(
 			options.globalStorageUri,
 			createDumpObservation({
-				event: 'deepseek-request',
+				event: 'mimo-request',
 				context,
 				segment: options.segment,
 				paths,
@@ -332,9 +333,9 @@ function createProviderInputSnapshot(
 
 function createPipelineSnapshot(
 	stage: 'input' | 'resolved',
-	request: DeepSeekRequest,
+	request: MiMoRequest,
 	messages: readonly vscode.LanguageModelChatRequestMessage[],
-	options: DumpDeepSeekRequestOptions,
+	options: DumpMiMoRequestOptions,
 	context: DumpContext,
 ): object {
 	return createDumpSnapshot({
@@ -356,7 +357,7 @@ function createPipelineSnapshot(
 						stats: options.visionStats ?? null,
 					}
 				: undefined,
-		deepSeekPromptSummary: summarizeDeepSeekSystemPrompt(request.messages),
+		mimoPromptSummary: summarizeMiMoSystemPrompt(request),
 		messages,
 		requestOptions: options.requestOptions,
 	});
@@ -369,7 +370,7 @@ function createDumpSnapshot(options: {
 	requestKind: RequestKind;
 	model: object;
 	vision?: object;
-	deepSeekPromptSummary?: SystemPromptSummary;
+	mimoPromptSummary?: SystemPromptSummary;
 	messages: readonly vscode.LanguageModelChatRequestMessage[];
 	requestOptions: vscode.ProvideLanguageModelChatResponseOptions;
 }): object {
@@ -387,7 +388,7 @@ function createDumpSnapshot(options: {
 		hostSettings: summarizeHostSettings(),
 		vision: options.vision,
 		systemPromptSummary: summarizeVscodeSystemPrompt(options.messages),
-		deepSeekPromptSummary: options.deepSeekPromptSummary,
+		mimoPromptSummary: options.mimoPromptSummary,
 		messageStats: summarizeMessages(serializedMessages),
 		messages: serializedMessages,
 		toolStats: summarizeTools(options.requestOptions.tools),
@@ -663,14 +664,26 @@ function summarizeVscodeSystemPrompt(
 	);
 }
 
-function summarizeDeepSeekSystemPrompt(messages: readonly DeepSeekMessage[]): SystemPromptSummary {
-	const message = messages[0];
-	const customizations = summarizeDeepSeekCustomizations(messages);
+function summarizeMiMoSystemPrompt(request: MiMoRequest): SystemPromptSummary {
+	const customizations = summarizeMiMoCustomizations(request.messages);
+	if (request.system) {
+		return createSystemPromptSummary(0, 'system', request.system, customizations);
+	}
+
+	const message = request.messages[0];
 	if (!message) {
 		return createSystemPromptSummary(null, null, '', customizations);
 	}
 
-	return createSystemPromptSummary(0, message.role, message.content ?? '', customizations);
+	let content = '';
+	if (typeof message.content === 'string') {
+		content = message.content;
+	} else if (Array.isArray(message.content)) {
+		const textBlock = message.content.find((block) => block.type === 'text');
+		content = (textBlock?.text as string) ?? '';
+	}
+
+	return createSystemPromptSummary(0, message.role, content, customizations);
 }
 
 function createSystemPromptSummary(
@@ -719,15 +732,21 @@ function summarizeVscodeCustomizations(
 	};
 }
 
-function summarizeDeepSeekCustomizations(
-	messages: readonly DeepSeekMessage[],
+function summarizeMiMoCustomizations(
+	messages: readonly MiMoMessage[],
 ): CustomizationsSummary {
 	let customizationsUpdateCountInHistory = 0;
 	let latestUserMessageIndex: number | null = null;
 	let latestUserHasCustomizationsUpdate = false;
 
 	for (const [index, message] of messages.entries()) {
-		const text = message.content ?? '';
+		let text = '';
+		if (typeof message.content === 'string') {
+			text = message.content;
+		} else if (Array.isArray(message.content)) {
+			const textBlock = message.content.find((block) => block.type === 'text');
+			text = (textBlock?.text as string) ?? '';
+		}
 		customizationsUpdateCountInHistory += countLiteral(text, '<customizationsUpdate>');
 		if (message.role === 'user') {
 			latestUserMessageIndex = index;
@@ -998,13 +1017,13 @@ function logProviderInputDump(
 }
 
 function logRequestDump(
-	request: DeepSeekRequest,
-	options: DumpDeepSeekRequestOptions,
+	request: MiMoRequest,
+	options: DumpMiMoRequestOptions,
 	paths: RequestDumpPaths,
 	requestJsonLength: number,
 	requestKind: RequestKind,
 ): void {
-	const systemPromptSummary = summarizeDeepSeekSystemPrompt(request.messages);
+	const systemPromptSummary = summarizeMiMoSystemPrompt(request);
 	logger.debug(
 		formatRequestLogLine(
 			requestKind,
@@ -1094,5 +1113,5 @@ function getRequestDumpBaseRootUri(globalStorageUri: vscode.Uri): vscode.Uri {
 		return vscode.Uri.joinPath(globalStorageUri, 'request-dumps');
 	}
 
-	return vscode.Uri.file(join(tmpdir(), 'deepseek-request-dumps'));
+	return vscode.Uri.file(join(tmpdir(), 'mimo-request-dumps'));
 }

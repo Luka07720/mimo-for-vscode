@@ -1,7 +1,7 @@
 import vscode from 'vscode';
 import { createUserFacingError } from '../client';
 import { logger } from '../logger';
-import type { DeepSeekToolCall, DeepSeekUsage } from '../types';
+import type { MiMoToolUseBlock, MiMoUsage } from '../types';
 import {
 	formatRequestLogLine,
 	observeCancellationToken,
@@ -20,6 +20,16 @@ interface ResponseStreamState {
 	emittedToolCallIds: string[];
 	initialResponseNoticeReported: boolean;
 	replayMarkerReported: boolean;
+}
+
+function createAbortSignalFromToken(token: vscode.CancellationToken): AbortSignal {
+	const controller = new AbortController();
+	if (token.isCancellationRequested) {
+		controller.abort();
+	} else {
+		token.onCancellationRequested(() => controller.abort());
+	}
+	return controller.signal;
 }
 
 const COPILOT_USAGE_DATA_PART_MIME = 'usage';
@@ -63,7 +73,7 @@ export function streamChatCompletion({
 					handleThinking(text, state, progress);
 				},
 
-				onToolCall: (toolCall: DeepSeekToolCall) => {
+				onToolCall: (toolCall: MiMoToolUseBlock) => {
 					reportInitialResponseNoticeOnce(progress, state, initialResponseNotice);
 					handleToolCall(toolCall, state, progress);
 				},
@@ -81,7 +91,7 @@ export function streamChatCompletion({
 					);
 				},
 
-				onUsage: (usage) => {
+				onUsage: (usage: MiMoUsage) => {
 					const charsPerToken = updateCharsPerToken(
 						prepared.totalRequestChars,
 						usage,
@@ -92,9 +102,9 @@ export function streamChatCompletion({
 					reportCopilotContextUsage(progress, usage);
 				},
 			},
-			token,
+			token.isCancellationRequested ? undefined : createAbortSignalFromToken(token),
 		)
-		.then(undefined, (error) => {
+		.then(undefined, (error: unknown) => {
 			reportSkippedReplayMarkerIfNeeded(
 				prepared,
 				state,
@@ -217,26 +227,25 @@ function handleThinking(
 ): void {
 	state.accumulatedReasoning += text;
 
-	// LanguageModelThinkingPart is a proposed API; the project root augmentation provides types.
 	progress.report(
 		new vscode.LanguageModelThinkingPart(text) as unknown as vscode.LanguageModelResponsePart,
 	);
 }
 
 function handleToolCall(
-	toolCall: DeepSeekToolCall,
+	toolCall: MiMoToolUseBlock,
 	state: ResponseStreamState,
 	progress: vscode.Progress<vscode.LanguageModelResponsePart>,
 ): void {
 	state.emittedToolCallIds.push(toolCall.id);
 
 	try {
-		const args = JSON.parse(toolCall.function.arguments);
+		const args = typeof toolCall.input === 'string' ? JSON.parse(toolCall.input) : toolCall.input;
 		progress.report(
-			new vscode.LanguageModelToolCallPart(toolCall.id, toolCall.function.name, args),
+			new vscode.LanguageModelToolCallPart(toolCall.id, toolCall.name, args),
 		);
 	} catch {
-		progress.report(new vscode.LanguageModelToolCallPart(toolCall.id, toolCall.function.name, {}));
+		progress.report(new vscode.LanguageModelToolCallPart(toolCall.id, toolCall.name, {}));
 	}
 }
 
@@ -254,11 +263,11 @@ function finalizeReplayDiagnostics(
 
 function updateCharsPerToken(
 	totalRequestChars: number,
-	usage: DeepSeekUsage,
+	usage: MiMoUsage,
 	charsPerToken: number,
 ): number {
-	if (totalRequestChars > 0 && usage.prompt_tokens > 0) {
-		const observedRatio = totalRequestChars / usage.prompt_tokens;
+	if (totalRequestChars > 0 && usage.input_tokens > 0) {
+		const observedRatio = totalRequestChars / usage.input_tokens;
 		return charsPerToken * 0.7 + observedRatio * 0.3;
 	}
 	return charsPerToken;
@@ -266,14 +275,14 @@ function updateCharsPerToken(
 
 function reportCopilotContextUsage(
 	progress: vscode.Progress<vscode.LanguageModelResponsePart>,
-	usage: DeepSeekUsage,
+	usage: MiMoUsage,
 ): void {
 	const data = {
-		prompt_tokens: usage.prompt_tokens,
-		completion_tokens: usage.completion_tokens,
-		total_tokens: usage.total_tokens,
+		prompt_tokens: usage.input_tokens,
+		completion_tokens: usage.output_tokens,
+		total_tokens: usage.input_tokens + usage.output_tokens,
 		prompt_tokens_details: {
-			cached_tokens: usage.prompt_cache_hit_tokens ?? 0,
+			cached_tokens: usage.cache_read_input_tokens ?? 0,
 		},
 	};
 

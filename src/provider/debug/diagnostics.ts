@@ -2,8 +2,9 @@ import { createHash } from 'crypto';
 import vscode from 'vscode';
 import { getDebugLoggingEnabled } from '../../config';
 import { LANGUAGE_MODEL_CHAT_SYSTEM_ROLE } from '../../consts';
+import { safeStringify } from '../../json';
 import { logger } from '../../logger';
-import type { DeepSeekMessage, DeepSeekRequest, DeepSeekTool, DeepSeekUsage } from '../../types';
+import type { MiMoMessage, MiMoRequest, MiMoTool, MiMoUsage } from '../../types';
 import { REPLAY_MARKER_MIME, parseFirstReplayMarker } from '../replay';
 import type { ConversationSegment } from '../segment';
 import { ACTIVATE_TOOL_PREFIX } from '../tools/consts';
@@ -11,7 +12,7 @@ import type { ActivatePreflightInspection } from '../tools/preflight';
 import { IMAGE_DESCRIPTION_UNAVAILABLE } from '../vision/consts';
 import type { VisionResolutionStats as VisionPipelineStats } from '../vision/index';
 import {
-	classifyDeepSeekRequest,
+	classifyMiMoRequest,
 	formatModelFields,
 	formatRequestLogLine,
 	type RequestKind,
@@ -72,7 +73,7 @@ export interface CacheTraceStats {
 
 export interface CacheTraceMessageSummary {
 	index: number;
-	role: DeepSeekMessage['role'];
+	role: MiMoMessage['role'];
 	hash: string;
 	contentHash: string;
 	contentHeadHash: string;
@@ -164,7 +165,7 @@ export interface CacheTraceSystemPromptChange {
 }
 
 export interface BeginCacheDiagnosticsOptions {
-	request: DeepSeekRequest;
+	request: MiMoRequest;
 	segment: ConversationSegment;
 	requestKind?: RequestKind;
 	vscodeModelId: string;
@@ -187,7 +188,7 @@ export interface CacheDiagnosticsRun {
 	onDone(info: CacheDiagnosticsDoneInfo): void;
 	onCancellationTokenRequested(): void;
 	onReplayMarkerReport(info: ReplayMarkerReportInfo): void;
-	onUsage(usage: DeepSeekUsage, charsPerToken: number): void;
+	onUsage(usage: MiMoUsage, charsPerToken: number): void;
 }
 
 export type ReplayMarkerReportStatus = 'reported' | 'failed' | 'skipped';
@@ -332,7 +333,7 @@ class DefaultCacheDiagnosticsRecorder implements CacheDiagnosticsRecorder {
 	beginRequest(options: BeginCacheDiagnosticsOptions): CacheDiagnosticsRun {
 		const requestKind =
 			options.requestKind ??
-			classifyDeepSeekRequest({
+			classifyMiMoRequest({
 				request: options.request,
 				inputMessages: options.inputMessages,
 			});
@@ -403,7 +404,7 @@ class DefaultCacheDiagnosticsRecorder implements CacheDiagnosticsRecorder {
 					` thinkingEffort=${options.thinkingEffort}` +
 					` maxTokens=${options.maxTokens ?? 'api-default'}` +
 					` inputMessages=${options.inputMessages.length}` +
-					` deepseekMessages=${options.request.messages.length}`,
+					` mimoMessages=${options.request.messages.length}`,
 			),
 		);
 		const hostPromptTrace = summarizeHostPromptTrace(options.inputMessages);
@@ -615,7 +616,7 @@ class ActiveCacheDiagnosticsRun implements CacheDiagnosticsRun {
 		this.recorder.rememberCacheTrace(this.snapshot);
 	}
 
-	onUsage(usage: DeepSeekUsage, charsPerToken: number): void {
+	onUsage(usage: MiMoUsage, charsPerToken: number): void {
 		logUsage(usage, charsPerToken, this.usageLogContext, this.requestId);
 		if (this.resultComparison) {
 			const hitRate = getCacheHitRate(usage);
@@ -662,7 +663,7 @@ class NoopCacheDiagnosticsRun implements CacheDiagnosticsRun {
 
 	onReplayMarkerReport(_info: ReplayMarkerReportInfo): void {}
 
-	onUsage(usage: DeepSeekUsage, charsPerToken: number): void {
+	onUsage(usage: MiMoUsage, charsPerToken: number): void {
 		logUsage(usage, charsPerToken, this.usageLogContext);
 	}
 }
@@ -794,28 +795,28 @@ function sanitizeLogValue(value: string): string {
 }
 
 function logUsage(
-	usage: DeepSeekUsage,
+	usage: MiMoUsage,
 	charsPerToken: number,
 	context: UsageLogContext,
 	requestId?: number,
 ): void {
-	const cacheHit = usage.prompt_cache_hit_tokens ?? 0;
-	const cacheMiss = usage.prompt_cache_miss_tokens ?? 0;
+	const cacheHit = usage.cache_read_input_tokens ?? 0;
+	const cacheMiss = usage.input_tokens - cacheHit;
 	logger.info(
 		formatRequestLogLine(
 			context.requestKind,
 			`tokens${requestId ? ` #${requestId}` : ''}: ` +
 				formatModelFields(context.vscodeModelId, context.apiModelId) +
-				` prompt=${usage.prompt_tokens} completion=${usage.completion_tokens}` +
+				` prompt=${usage.input_tokens} completion=${usage.output_tokens}` +
 				` | cache: hit=${cacheHit} miss=${cacheMiss} rate=${getCacheHitRate(usage)}%` +
 				` | chars/tok=${charsPerToken.toFixed(2)}`,
 		),
 	);
 }
 
-function getCacheHitRate(usage: DeepSeekUsage): string {
-	const cacheHit = usage.prompt_cache_hit_tokens ?? 0;
-	const cacheMiss = usage.prompt_cache_miss_tokens ?? 0;
+function getCacheHitRate(usage: MiMoUsage): string {
+	const cacheHit = usage.cache_read_input_tokens ?? 0;
+	const cacheMiss = usage.input_tokens - cacheHit;
 	const cacheTotal = cacheHit + cacheMiss;
 	return cacheTotal > 0 ? ((cacheHit / cacheTotal) * 100).toFixed(0) : 'n/a';
 }
@@ -1143,9 +1144,9 @@ function getPartConstructorName(part: unknown): string {
 }
 
 export function createCacheTraceSnapshot(
-	request: DeepSeekRequest,
+	request: MiMoRequest,
 	inputMessages: readonly vscode.LanguageModelChatRequestMessage[] = [],
-	requestKind: RequestKind = classifyDeepSeekRequest({ request, inputMessages }),
+	requestKind: RequestKind = classifyMiMoRequest({ request, inputMessages }),
 ): CacheTraceSnapshot {
 	const toolsSerialized = stableStringify(request.tools ?? []);
 	const messageSummaries = summarizeMessages(request.messages);
@@ -1173,15 +1174,13 @@ export function createCacheTraceSnapshot(
 }
 
 function createRedactedComparisonInput(
-	request: DeepSeekRequest,
+	request: MiMoRequest,
 	messageSummaries: CacheTraceMessageSummary[],
 	toolSummaries: CacheTraceToolSummary[],
 ): string {
 	return stableStringify({
 		model: request.model,
-		tool_choice: request.tool_choice ?? null,
 		thinking: request.thinking ?? null,
-		reasoning_effort: request.reasoning_effort ?? null,
 		tools: toolSummaries,
 		messages: messageSummaries,
 	});
@@ -1381,7 +1380,7 @@ export function getCacheTraceWarnings(snapshot: CacheTraceSnapshot): string[] {
 	}
 	if (snapshot.stats.missingToolReasoningMessages > 0) {
 		warnings.push(
-			`${snapshot.stats.missingToolReasoningMessages} assistant tool-call message(s) are missing marker-replayed reasoning_content; DeepSeek requires this in thinking tool-call histories and cache prefixes may drift.`,
+			`${snapshot.stats.missingToolReasoningMessages} assistant tool-call message(s) are missing marker-replayed reasoning_content; MiMo requires this in thinking tool-call histories and cache prefixes may drift.`,
 		);
 	}
 	if (snapshot.stats.missingPostToolCallReasoningMessages > 0) {
@@ -1572,13 +1571,13 @@ function formatContentSectionSummary(summary: CacheTraceContentSectionSummary | 
 	);
 }
 
-function summarizeMessages(messages: DeepSeekMessage[]): CacheTraceMessageSummary[] {
+function summarizeMessages(messages: MiMoMessage[]): CacheTraceMessageSummary[] {
 	const summaries: CacheTraceMessageSummary[] = [];
 	let followsToolResult = false;
 	for (const [index, message] of messages.entries()) {
 		summaries.push(summarizeMessage(message, index, followsToolResult));
-		if (message.role === 'tool') {
-			followsToolResult = true;
+		if (message.role === 'user' && Array.isArray(message.content)) {
+			followsToolResult = message.content.some((block) => block.type === 'tool_result');
 		} else {
 			followsToolResult = false;
 		}
@@ -1587,37 +1586,53 @@ function summarizeMessages(messages: DeepSeekMessage[]): CacheTraceMessageSummar
 }
 
 function summarizeMessage(
-	message: DeepSeekMessage,
+	message: MiMoMessage,
 	index: number,
 	followsToolResult: boolean,
 ): CacheTraceMessageSummary {
-	const toolCallArgumentChars =
-		message.tool_calls?.reduce((sum, toolCall) => sum + toolCall.function.arguments.length, 0) ?? 0;
-	const reasoningChars = message.reasoning_content?.length ?? 0;
-	const toolCalls = message.tool_calls?.length ?? 0;
+	let toolCallArgumentChars = 0;
+	let toolCalls = 0;
+	let reasoningChars = 0;
+	let messageContent = '';
+
+	if (typeof message.content === 'string') {
+		messageContent = message.content;
+	} else if (Array.isArray(message.content)) {
+		for (const block of message.content) {
+			if (block.type === 'text') {
+				messageContent += (block.text as string) ?? '';
+			} else if (block.type === 'thinking') {
+				reasoningChars += ((block.thinking as string) ?? '').length;
+			} else if (block.type === 'tool_use') {
+				toolCalls += 1;
+				toolCallArgumentChars += safeStringify(block.input)?.length ?? 0;
+			}
+		}
+	}
+
 	const assistantAfterToolResult = message.role === 'assistant' && followsToolResult;
 	const afterToolResultKind = assistantAfterToolResult
 		? toolCalls > 0
 			? ('tool-call' as const)
 			: ('final' as const)
 		: ('none' as const);
-	const hasReasoningContent = message.reasoning_content !== undefined;
+	const hasReasoningContent = reasoningChars > 0 || (Array.isArray(message.content) && message.content.some((block) => block.type === 'thinking'));
 	const hasEmptyReasoningContent = hasReasoningContent && reasoningChars === 0;
-	const imageDescriptionCount = countLiteral(message.content, '[Image Description:');
-	const unableImageCount = countLiteral(message.content, IMAGE_DESCRIPTION_UNAVAILABLE);
-	const urlCount = countRegex(message.content, /https?:\/\//g);
-	const codeFenceCount = countLiteral(message.content, '```');
-	const likelyPathCount = countLikelyPaths(message.content);
+	const imageDescriptionCount = countLiteral(messageContent, '[Image Description:');
+	const unableImageCount = countLiteral(messageContent, IMAGE_DESCRIPTION_UNAVAILABLE);
+	const urlCount = countRegex(messageContent, /https?:\/\//g);
+	const codeFenceCount = countLiteral(messageContent, '```');
+	const likelyPathCount = countLikelyPaths(messageContent);
 
 	return {
 		index,
 		role: message.role,
 		hash: hashString(stableStringify(message)),
-		contentHash: hashString(message.content),
-		contentHeadHash: hashString(message.content.slice(0, HASH_WINDOW_CHARS)),
-		contentTailHash: hashString(message.content.slice(-HASH_WINDOW_CHARS)),
-		contentChars: message.content.length,
-		contentLines: countLines(message.content),
+		contentHash: hashString(messageContent),
+		contentHeadHash: hashString(messageContent.slice(0, HASH_WINDOW_CHARS)),
+		contentTailHash: hashString(messageContent.slice(-HASH_WINDOW_CHARS)),
+		contentChars: messageContent.length,
+		contentLines: countLines(messageContent),
 		imageDescriptionCount,
 		unableImageCount,
 		urlCount,
@@ -1633,7 +1648,7 @@ function summarizeMessage(
 		missingPostToolReasoning: assistantAfterToolResult && !hasReasoningContent,
 		missingPostToolCallReasoning: afterToolResultKind === 'tool-call' && !hasReasoningContent,
 		missingPostToolFinalReasoning: afterToolResultKind === 'final' && !hasReasoningContent,
-		contentSections: index === 0 ? summarizeSystemPromptSections(message.content) : undefined,
+		contentSections: index === 0 ? summarizeSystemPromptSections(messageContent) : undefined,
 	};
 }
 
@@ -1752,17 +1767,17 @@ function getSafeSystemPromptSectionLabel(line: string): string | undefined {
 	return SAFE_SYSTEM_PROMPT_TAGS.has(tag) ? `tag:${tag}` : 'tag:other';
 }
 
-function summarizeTools(tools: DeepSeekTool[]): CacheTraceToolSummary[] {
+function summarizeTools(tools: MiMoTool[]): CacheTraceToolSummary[] {
 	return tools.map((tool, index) => ({
 		index,
-		name: tool.function.name,
+		name: tool.name,
 		hash: hashString(stableStringify(tool)),
-		descriptionHash: hashString(tool.function.description ?? ''),
-		parametersHash: hashString(stableStringify(tool.function.parameters ?? null)),
+		descriptionHash: hashString(tool.description ?? ''),
+		parametersHash: hashString(stableStringify(tool.input_schema ?? null)),
 	}));
 }
 
-function summarizeStats(messages: DeepSeekMessage[], toolCount: number): CacheTraceStats {
+function summarizeStats(messages: MiMoMessage[], toolCount: number): CacheTraceStats {
 	let userMessages = 0;
 	let assistantMessages = 0;
 	let toolMessages = 0;
@@ -1803,55 +1818,77 @@ function summarizeStats(messages: DeepSeekMessage[], toolCount: number): CacheTr
 			userMessages += 1;
 		} else if (message.role === 'assistant') {
 			assistantMessages += 1;
-		} else if (message.role === 'tool') {
-			toolMessages += 1;
 		} else if (message.role === 'system') {
 			systemMessages += 1;
 		}
 
-		totalContentChars += message.content.length;
-		if (message.content.length > LARGE_MESSAGE_CHARS) {
+		let messageContent = '';
+		let messageToolCalls = 0;
+		let messageReasoningChars = 0;
+		let messageToolCallArgumentChars = 0;
+		const hasToolResult = message.role === 'user' && Array.isArray(message.content) && message.content.some((block) => block.type === 'tool_result');
+
+		if (hasToolResult) {
+			toolMessages += 1;
+		}
+
+		if (typeof message.content === 'string') {
+			messageContent = message.content;
+		} else if (Array.isArray(message.content)) {
+			for (const block of message.content) {
+				if (block.type === 'text') {
+					messageContent += (block.text as string) ?? '';
+				} else if (block.type === 'thinking') {
+					messageReasoningChars += ((block.thinking as string) ?? '').length;
+				} else if (block.type === 'tool_use') {
+					messageToolCalls += 1;
+					messageToolCallArgumentChars += safeStringify(block.input)?.length ?? 0;
+				}
+			}
+		}
+
+		totalContentChars += messageContent.length;
+		if (messageContent.length > LARGE_MESSAGE_CHARS) {
 			largeMessages += 1;
 		}
 
-		const imageDescriptions = countLiteral(message.content, '[Image Description:');
+		const imageDescriptions = countLiteral(messageContent, '[Image Description:');
 		if (imageDescriptions > 0) {
 			imageDescriptionMessages += 1;
 			imageDescriptionParts += imageDescriptions;
 		}
-		if (message.content.includes(IMAGE_DESCRIPTION_UNAVAILABLE)) {
+		if (messageContent.includes(IMAGE_DESCRIPTION_UNAVAILABLE)) {
 			unableImageMessages += 1;
 		}
 
-		const messageUrlCount = countRegex(message.content, /https?:\/\//g);
+		const messageUrlCount = countRegex(messageContent, /https?:\/\//g);
 		if (messageUrlCount > 0) {
 			urlMessages += 1;
 			urlCount += messageUrlCount;
 		}
 
-		const messageCodeFenceCount = countLiteral(message.content, '```');
+		const messageCodeFenceCount = countLiteral(messageContent, '```');
 		if (messageCodeFenceCount > 0) {
 			codeFenceMessages += 1;
 			codeFenceCount += messageCodeFenceCount;
 		}
 
-		const messageLikelyPathCount = countLikelyPaths(message.content);
+		const messageLikelyPathCount = countLikelyPaths(messageContent);
 		if (messageLikelyPathCount > 0) {
 			likelyPathMessages += 1;
 			likelyPathCount += messageLikelyPathCount;
 		}
 
-		const toolCalls = message.tool_calls?.length ?? 0;
-		const messageReasoningChars = message.reasoning_content?.length ?? 0;
 		if (message.role === 'assistant' && followsToolResult) {
 			assistantAfterToolResultMessages += 1;
-			const isToolCallAfterToolResult = toolCalls > 0;
+			const isToolCallAfterToolResult = messageToolCalls > 0;
 			if (isToolCallAfterToolResult) {
 				assistantAfterToolResultToolCallMessages += 1;
 			} else {
 				assistantAfterToolResultFinalMessages += 1;
 			}
-			if (message.reasoning_content === undefined) {
+			const hasReasoning = messageReasoningChars > 0 || (Array.isArray(message.content) && message.content.some((block) => block.type === 'thinking'));
+			if (!hasReasoning) {
 				missingPostToolReasoningMessages += 1;
 				if (isToolCallAfterToolResult) {
 					missingPostToolCallReasoningMessages += 1;
@@ -1875,23 +1912,22 @@ function summarizeStats(messages: DeepSeekMessage[], toolCount: number): CacheTr
 			}
 		}
 
-		if (toolCalls > 0) {
+		if (messageToolCalls > 0) {
 			assistantToolCallMessages += 1;
-			if (message.reasoning_content === undefined) {
+			const hasReasoning = messageReasoningChars > 0 || (Array.isArray(message.content) && message.content.some((block) => block.type === 'thinking'));
+			if (!hasReasoning) {
 				missingToolReasoningMessages += 1;
 			} else if (messageReasoningChars === 0) {
 				emptyToolReasoningMessages += 1;
 			} else {
 				nonEmptyToolReasoningMessages += 1;
 			}
-			for (const toolCall of message.tool_calls ?? []) {
-				toolCallArgumentChars += toolCall.function.arguments.length;
-			}
+			toolCallArgumentChars += messageToolCallArgumentChars;
 		}
 
 		reasoningChars += messageReasoningChars;
 
-		if (message.role === 'tool') {
+		if (hasToolResult) {
 			followsToolResult = true;
 		} else {
 			followsToolResult = false;

@@ -1,13 +1,13 @@
 import vscode from 'vscode';
 import { t } from '../../i18n';
-import type { DeepSeekMessage, DeepSeekTool } from '../../types';
+import type { MiMoMessage, MiMoTool } from '../../types';
 import { convertTools } from '../convert';
-import { DEEPSEEK_TOOLS_LIMIT } from './consts';
+import { MIMO_TOOLS_LIMIT } from './consts';
 
 export function prepareRequestTools(
 	toolCallingCapability: boolean | number | undefined,
 	options: vscode.ProvideLanguageModelChatResponseOptions,
-): DeepSeekTool[] | undefined {
+): MiMoTool[] | undefined {
 	const tools = toolCallingCapability ? convertTools(options.tools) : undefined;
 	const toolLimit = getToolCallingLimit(toolCallingCapability);
 	const toolsCount = tools?.length ?? 0;
@@ -17,18 +17,22 @@ export function prepareRequestTools(
 	return tools;
 }
 
-export function collectTrailingToolResultIds(messages: readonly DeepSeekMessage[]): string[] {
+export function collectTrailingToolResultIds(messages: readonly MiMoMessage[]): string[] {
 	const trailingToolResultIds: string[] = [];
 	for (let index = messages.length - 1; index >= 0; index -= 1) {
 		const message = messages[index];
-		if (message.role !== 'tool' || !message.tool_call_id) {
+		if (message.role !== 'user' || !Array.isArray(message.content)) {
 			break;
 		}
-		trailingToolResultIds.push(message.tool_call_id);
+		const toolResult = message.content.find((block) => block.type === 'tool_result');
+		if (!toolResult) {
+			break;
+		}
+		trailingToolResultIds.push(toolResult.tool_use_id as string);
 	}
 	return trailingToolResultIds.reverse();
 }
 
 function getToolCallingLimit(toolCallingCapability: boolean | number | undefined): number {
-	return typeof toolCallingCapability === 'number' ? toolCallingCapability : DEEPSEEK_TOOLS_LIMIT;
+	return typeof toolCallingCapability === 'number' ? toolCallingCapability : MIMO_TOOLS_LIMIT;
 }
