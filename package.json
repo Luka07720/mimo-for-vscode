@@ -8,7 +8,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/Vizards/deepseek-v4-for-copilot"
+    "url": "https://github.com/Luka07720/mimo-for-vscode"
   },
   "engines": {
     "vscode": "^1.116.0",
@@ -118,7 +118,7 @@
       "properties": {
         "mimo-copilot.baseUrl": {
           "type": "string",
-          "default": "https://api.deepseek.com",
+          "default": "https://api.xiaomimimo.com/anthropic",
           "description": "%mimo-copilot.config.baseUrl.description%"
         },
         "mimo-copilot.maxTokens": {

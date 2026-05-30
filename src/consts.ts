@@ -5,9 +5,9 @@ export const CONFIG_SECTION = 'mimo-copilot';
 
 export const EXTERNAL_URLS = {
 	mimo: {
-		apiKeys: 'https://platform.deepseek.com/api_keys',
-		usage: 'https://platform.deepseek.com/usage',
-		status: 'https://status.deepseek.com',
+		apiKeys: 'https://platform.xiaomimimo.com/api_keys',
+		usage: 'https://platform.xiaomimimo.com/usage',
+		status: 'https://status.xiaomimimo.com',
 	},
 } as const;
 

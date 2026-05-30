@@ -9,7 +9,7 @@
   "mimo-copilot.walkthrough.title": "MiMo for Copilot Chat",
   "mimo-copilot.walkthrough.description": "Set up MiMo models in Copilot Chat.",
   "mimo-copilot.walkthrough.setApiKey.title": "Set your MiMo API key",
-  "mimo-copilot.walkthrough.setApiKey.description": "[Get an API key](command:mimo-copilot.getApiKey) from deepseek.com.\n[Set API Key](command:mimo-copilot.setApiKey)",
+  "mimo-copilot.walkthrough.setApiKey.description": "[Get an API key](command:mimo-copilot.getApiKey) from the MiMo platform.\n[Set API Key](command:mimo-copilot.setApiKey)",
   "mimo-copilot.walkthrough.showModels.title": "Show MiMo models",
   "mimo-copilot.walkthrough.showModels.description": "If the models are hidden, open VS Code's Language Models manager and show the MiMo models.\n[Open Language Models](command:workbench.action.chat.manage)",
   "mimo-copilot.walkthrough.advancedSettings.title": "Try advanced settings",

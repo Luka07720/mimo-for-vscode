@@ -56,7 +56,7 @@ const zh: Translations = {
 	'request.preflightRoundLimitExceeded':
 		'实验性稳定工具列表设置已尝试 {0} 轮，仍无法得到稳定的已启用工具列表。请关闭该实验性设置，或先用 VS Code 的 Configure Tools 关闭不常用的工具。',
 	'notice.toolDrift':
-		'⚠️ 工具列表不稳定，缓存命中率可能下降。[了解更多](https://github.com/Vizards/deepseek-v4-for-copilot/blob/main/docs/notices/tool-drift.zh.md)',
+		'⚠️ 工具列表不稳定，缓存命中率可能下降。[了解更多](https://github.com/Luka07720/mimo-for-vscode/blob/main/docs/notices/tool-drift.zh.md)',
 
 	// Errors
 	'error.http.400': '[{0}] 请求体格式错误。请根据错误信息提示修改请求体。',
@@ -141,7 +141,7 @@ const en: Translations = {
 	'request.preflightRoundLimitExceeded':
 		'Experimental tool-list stabilization tried {0} rounds but still could not get a stable enabled-tools list. Turn this experimental setting off, or use VS Code Configure Tools to disable tools you rarely use first.',
 	'notice.toolDrift':
-		'⚠️ Tool list is unstable; cache hit rate may drop. [Learn more](https://github.com/Vizards/deepseek-v4-for-copilot/blob/main/docs/notices/tool-drift.en.md)',
+		'⚠️ Tool list is unstable; cache hit rate may drop. [Learn more](https://github.com/Luka07720/mimo-for-vscode/blob/main/docs/notices/tool-drift.en.md)',
 
 	// Errors
 	'error.http.400':

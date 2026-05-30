@@ -9,7 +9,7 @@
   "mimo-copilot.walkthrough.title": "MiMo for Copilot Chat",
   "mimo-copilot.walkthrough.description": "在 Copilot Chat 中配置 MiMo 模型。",
   "mimo-copilot.walkthrough.setApiKey.title": "设置你的 MiMo API Key",
-  "mimo-copilot.walkthrough.setApiKey.description": "从 deepseek.com [获取 API Key](command:mimo-copilot.getApiKey)。\n[设置 API Key](command:mimo-copilot.setApiKey)",
+  "mimo-copilot.walkthrough.setApiKey.description": "从 MiMo 平台 [获取 API Key](command:mimo-copilot.getApiKey)。\n[设置 API Key](command:mimo-copilot.setApiKey)",
   "mimo-copilot.walkthrough.showModels.title": "显示 MiMo 模型",
   "mimo-copilot.walkthrough.showModels.description": "如果模型被隐藏，打开 VS Code 的语言模型管理器并显示 MiMo 模型。\n[打开语言模型管理](command:workbench.action.chat.manage)",
   "mimo-copilot.walkthrough.advancedSettings.title": "尝试高级设置",

@@ -7,12 +7,15 @@ export const API_PROVIDER_HTTP_ERROR_LINKS: Record<
 	Record<string, { labelKey: string; url: string }>
 > = {
 	401: {
-		mimo: { labelKey: 'error.action.createApiKey', url: 'https://platform.deepseek.com/api_keys' },
+		mimo: {
+			labelKey: 'error.action.createApiKey',
+			url: 'https://platform.xiaomimimo.com/api_keys',
+		},
 	},
 	402: {
-		mimo: { labelKey: 'error.action.viewUsage', url: 'https://platform.deepseek.com/usage' },
+		mimo: { labelKey: 'error.action.viewUsage', url: 'https://platform.xiaomimimo.com/usage' },
 	},
 	'5xx': {
-		mimo: { labelKey: 'error.action.checkMiMoStatus', url: 'https://status.deepseek.com' },
+		mimo: { labelKey: 'error.action.checkMiMoStatus', url: 'https://status.xiaomimimo.com' },
 	},
 };

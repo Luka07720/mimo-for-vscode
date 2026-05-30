@@ -48,7 +48,7 @@ function estimatePartChars(part: unknown): number {
 			return 0;
 		}
 
-		// Images are resolved by the vision pipeline before reaching DeepSeek.
+		// Images are resolved by the vision pipeline before reaching MiMo.
 		// At token-count time we cannot know whether this image will be generated,
 		// replayed from a later assistant marker, or omitted as a historical miss.
 		// Use a stable fallback estimate instead of raw image bytes.
